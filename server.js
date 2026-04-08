@@ -12,9 +12,9 @@ app.use(express.json());
 // ============================================================
 // CONFIG
 // ============================================================
-const BOT_TOKEN      = process.env.BOT_TOKEN ;     || 
-const ANTHROPIC_KEY  = process.env.ANTHROPIC_KEY ;  || 
-const APPS_SCRIPT    = process.env.APPS_SCRIPT ;   || 
+const BOT_TOKEN      = process.env.BOT_TOKEN ;
+const ANTHROPIC_KEY  = process.env.ANTHROPIC_KEY ; 
+const APPS_SCRIPT    = process.env.APPS_SCRIPT ; 
 const TG             = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const AI             = "https://api.anthropic.com/v1/messages";
 
