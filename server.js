@@ -403,6 +403,27 @@ async function showImprove(chatId, s) {
     if (result.content && result.content[0]) await tg(chatId, result.content[0].text);
   } catch(e) { await tg(chatId, "❌ Error: " + e.message); }
 }
+// ── ADD HERE ──
+async function showMainMenu(chatId) {
+  await fetch(`${TG}/sendMessage`, {
+    method : "POST",
+    headers: {"Content-Type": "application/json"},
+    body   : JSON.stringify({
+      chat_id     : chatId,
+      text        : "Choose action:",
+      reply_markup: {
+        keyboard: [
+          ["📊 ANALYZE",  "📋 MISSING"],
+          ["💡 IMPROVE",  "📤 SUBMIT"],
+          ["🔄 RESET",    "📊 STATUS"],
+          ["🏠 NEW LOAN"]
+        ],
+        resize_keyboard: true,
+        persistent     : true
+      }
+    })
+  });
+}
 
 // ============================================================
 // WEBHOOK HANDLER
@@ -510,7 +531,12 @@ app.post("/webhook", async (req, res) => {
     const text = (msg.text || "").trim();
     if (!text) return;
 
-    const cmd = text.toUpperCase().replace(/^\//, "").split("@")[0].trim();
+    const cmd = text.toUpperCase()
+  .replace("📊 ", "").replace("📋 ", "")
+  .replace("💡 ", "").replace("📤 ", "")
+  .replace("🔄 ", "").replace("🏠 NEW LOAN", "HELP")
+  .replace(/^\//, "").split("@")[0].trim();
+
     console.log(`📩 Chat ${chatId}: "${cmd}"`);
 
     if (cmd === "HELP" || cmd === "START") {
