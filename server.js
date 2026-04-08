@@ -12,9 +12,9 @@ app.use(express.json());
 // ============================================================
 // CONFIG
 // ============================================================
-const BOT_TOKEN      = process.env.BOT_TOKEN      || "8762160054:AAHfrydTlBwb7E9sxwknQSwql2MHRKuNYlY";
-const ANTHROPIC_KEY  = process.env.ANTHROPIC_KEY  || "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";
-const APPS_SCRIPT    = process.env.APPS_SCRIPT    || "https://script.google.com/macros/s/AKfycbx-M3syDn2aVQbpsRdjCiFZP6LPU84AKB-HB1DGuJGAa8ozfst7hswHLcQg-L-H8r0/exec";
+const BOT_TOKEN      = process.env.BOT_TOKEN ;     || 
+const ANTHROPIC_KEY  = process.env.ANTHROPIC_KEY ;  || 
+const APPS_SCRIPT    = process.env.APPS_SCRIPT ;   || 
 const TG             = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const AI             = "https://api.anthropic.com/v1/messages";
 
