@@ -239,15 +239,15 @@ async function runAnalysis(chatId, s) {
       }
 
       await tg(chatId,
-        "━━━━━━━━━━━━━━━━━━━━━━━\n" +
-               await showMainMenu(chatId);
+  "━━━━━━━━━━━━━━━━━━━━━━━\n" +
+  "NEXT STEPS:\n" +
+  "IMPROVE — How to boost score\n" +
+  "SUBMIT  — Save & email report\n" +
+  "MISSING — Documents needed\n" +
+  "RESET   — Start new analysis"
+);
+await showMainMenu(chatId);
 
-        "NEXT STEPS:\n" +
-        "IMPROVE — How to boost score\n" +
-        "SUBMIT  — Save & email report\n" +
-        "MISSING — Documents needed\n" +
-        "RESET   — Start new analysis"
-      );
 
     } else {
       await tg(chatId, "❌ AI analysis failed!\n" + JSON.stringify(result).substring(0,200));
@@ -331,11 +331,14 @@ async function submitReport(chatId, s) {
 
     if (data.success) {
       await tg(chatId,
-        "✅ REPORT SAVED!\n" +
-        "━━━━━━━━━━━━━━━━━━\n" +
-               await showMainMenu(chatId);
+  "✅ REPORT SAVED!\n" +
+  "━━━━━━━━━━━━━━━━━━\n" +
+  "Sheet: Saved ✅\n" +
+  "Email: Sent ✅\n\n" +
+  "Type RESET to start new analysis."
+);
+await showMainMenu(chatId);
 
-        "Sheet: Saved ✅\n" +
         "Email: Sent ✅\n\n" +
         "Type RESET to start new analysis."
       );
