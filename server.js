@@ -623,6 +623,11 @@ app.post("/webhook", async (req, res) => {
 // ============================================================
 // HEALTH CHECK
 // ============================================================
+app.get("/testmenu", async (req, res) => {
+  await showMainMenu(1471849538);
+  res.json({sent: true});
+});
+
 app.get("/", (req, res) => {
   res.json({
     status : "✅ VMW AI Analyzer Running",
