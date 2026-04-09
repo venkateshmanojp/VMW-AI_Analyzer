@@ -200,7 +200,8 @@ function buildPrompt(s, docCount) {
   if (isBL)  p += `PAN, Aadhar, GST/Udyam, 12m bank statement, 2yr ITR, co-applicant docs\n`;
   if (isLAP) p += `PAN, Aadhar, income proof, 12m bank statement, property title docs, co-applicant docs${isBT ? ", 12m loan statement, NOC" : ""}\n`;
 
-  p += `\nFORMAT RESPONSE CONCISELY AS:\n\n`;
+  p += `\nFORMAT RESPONSE AS FOLLOWS — FULL DETAILS FIRST THEN QUICK SUMMARY AT END:\n\n`;
+
   p += `🤖 VMW AI LOAN ANALYSIS\n`;
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
   p += `Loan: ${s.name}\n`;
@@ -217,6 +218,10 @@ function buildPrompt(s, docCount) {
   p += `📊 PROBABILITY: [X]% | Risk: [LOW/MED/HIGH]\n\n`;
   p += `✅ [PROCEED/MORE DOCS/REJECT] — [one line reason]\n`;
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━`;
+p += `\n⚡ QUICK DECISION\n`;
+p += `📊 PROBABILITY: [X]% | Risk: [LOW/MED/HIGH]\n`;
+p += `✅ [PROCEED/MORE DOCS/REJECT] — [one line reason]\n`;
+p += `━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   return p;
 }
