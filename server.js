@@ -240,6 +240,8 @@ async function runAnalysis(chatId, s) {
 
       await tg(chatId,
         "━━━━━━━━━━━━━━━━━━━━━━━\n" +
+               await showMainMenu(chatId);
+
         "NEXT STEPS:\n" +
         "IMPROVE — How to boost score\n" +
         "SUBMIT  — Save & email report\n" +
@@ -331,6 +333,8 @@ async function submitReport(chatId, s) {
       await tg(chatId,
         "✅ REPORT SAVED!\n" +
         "━━━━━━━━━━━━━━━━━━\n" +
+               await showMainMenu(chatId);
+
         "Sheet: Saved ✅\n" +
         "Email: Sent ✅\n\n" +
         "Type RESET to start new analysis."
@@ -465,13 +469,15 @@ app.post("/webhook", async (req, res) => {
           `• Loan statement (if BT)\n\n` +
           `Type ANALYZE when all uploaded!`
         );
+        await showMainMenu(chatId);
         return;
       }
 
       // CIBIL selected
       if (data.startsWith("cibil_")) {
         const s = getSession(chatId);
-        if (!s) { await tg(chatId, "❌ Session expired! Type HELP to restart."); return; }
+        if (!s) { await tg(chatId, "❌ Session expired! Type HELP to restart."); await showMainMenu(chatId);
+ return; }
 
         s.cibil  = CIBIL_MAP[data.replace("cibil_", "")] || "Not Checked";
         s.status = "analyzing";
