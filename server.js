@@ -542,10 +542,11 @@ async function createClassifiedPDFs(chatId) {
         const form = new FD();
         const ext  = file.mimeType === "application/pdf" ? ".pdf" : ".jpg";
         form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
-        const ur   = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
+        const ur = await fetch("https://"+server+"/v1/upload?task="+taskId, {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
+
         const ud   = await ur.json();
         console.log("Upload response:", JSON.stringify(ud));
-        if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext, task:taskId});
+        if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext});
       }
       if (serverFiles.length === 0) { console.log("No files uploaded for " + docType); continue; }
       const safeName   = docType.replace(/[^a-zA-Z0-9]/g, "_");
