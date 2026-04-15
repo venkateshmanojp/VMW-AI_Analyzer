@@ -509,6 +509,7 @@ async function createClassifiedPDFs(chatId) {
       body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})
     });
     const ad = await ar.json();
+    console.log("ilovepdf auth response:", JSON.stringify(ad));
     token = ad.token;
   } catch(e) {
     await tg(chatId, "❌ ilovepdf auth failed: " + e.message);
@@ -517,35 +518,36 @@ async function createClassifiedPDFs(chatId) {
     return;
   }
   if (!token) {
-    await tg(chatId, "❌ Could not authenticate with ilovepdf!");
+    await tg(chatId, "❌ Could not authenticate with ilovepdf!\nCheck ILOVEPDF_PUBLIC env variable.");
     delete CLASSIFY_PENDING[chatId];
     await showMainMenu(chatId);
     return;
   }
+  console.log("ilovepdf token obtained: " + token.substring(0,20) + "...");
   let successCount = 0;
   for (const docType in groups) {
     const fileIds = groups[docType];
     try {
       const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/imagepdf", {method:"GET", headers:{"Authorization":"Bearer " + token}});
-   console.log("ilovepdf task response:", JSON.stringify(taskData));
-
       const taskData = await taskRes.json();
+      console.log("ilovepdf task for " + docType + ":", JSON.stringify(taskData));
       const server   = taskData.server;
       const taskId   = taskData.task;
-      if (!server || !taskId) continue;
+      if (!server || !taskId) { console.log("No server/task for " + docType); continue; }
       const serverFiles = [];
       for (let i = 0; i < fileIds.length; i++) {
         const file = await downloadFile(fileIds[i]);
-        if (!file) continue;
+        if (!file) { console.log("Could not download file " + i); continue; }
         const FD   = require("form-data");
         const form = new FD();
         const ext  = file.mimeType === "application/pdf" ? ".pdf" : ".jpg";
         form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
         const ur   = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
         const ud   = await ur.json();
+        console.log("Upload response:", JSON.stringify(ud));
         if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext, task:taskId});
       }
-      if (serverFiles.length === 0) continue;
+      if (serverFiles.length === 0) { console.log("No files uploaded for " + docType); continue; }
       const safeName   = docType.replace(/[^a-zA-Z0-9]/g, "_");
       const pr = await fetch("https://"+server+"/v1/process", {
         method:"POST",
@@ -553,7 +555,8 @@ async function createClassifiedPDFs(chatId) {
         body:JSON.stringify({task:taskId, tool:"imagepdf", files:serverFiles, output_filename:safeName})
       });
       const pd = await pr.json();
-      if (!pd.download_filename) continue;
+      console.log("Process response:", JSON.stringify(pd));
+      if (!pd.download_filename) { console.log("No download_filename for " + docType); continue; }
       const dr  = await fetch("https://"+server+"/v1/download/"+taskId, {headers:{"Authorization":"Bearer "+token}});
       const buf = await dr.buffer();
       const TF  = require("form-data");
