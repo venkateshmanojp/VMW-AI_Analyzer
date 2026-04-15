@@ -86,8 +86,8 @@ async function showMainMenu(chatId) {
           keyboard: [
             ["📊 ANALYZE",  "📋 MISSING"],
             ["💡 IMPROVE",  "📤 SUBMIT"],
-            ["🔄 RESET",    "📊 STATUS"],
-            ["🏠 NEW LOAN"]
+            ["🔍 CLASSIFY", "📊 STATUS"],
+            ["🔄 RESET",    "🏠 NEW LOAN"]
           ],
           resize_keyboard  : true,
           one_time_keyboard: false
@@ -200,8 +200,7 @@ function buildPrompt(s, docCount) {
   if (isBL)  p += `PAN, Aadhar, GST/Udyam, 12m bank statement, 2yr ITR, co-applicant docs\n`;
   if (isLAP) p += `PAN, Aadhar, income proof, 12m bank statement, property title docs, co-applicant docs${isBT ? ", 12m loan statement, NOC" : ""}\n`;
 
-  p += `\nFORMAT RESPONSE AS FOLLOWS — FULL DETAILS FIRST THEN QUICK SUMMARY AT END:\n\n`;
-
+  p += `\nFORMAT RESPONSE CONCISELY AS:\n\n`;
   p += `🤖 VMW AI LOAN ANALYSIS\n`;
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
   p += `Loan: ${s.name}\n`;
@@ -218,10 +217,6 @@ function buildPrompt(s, docCount) {
   p += `📊 PROBABILITY: [X]% | Risk: [LOW/MED/HIGH]\n\n`;
   p += `✅ [PROCEED/MORE DOCS/REJECT] — [one line reason]\n`;
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━`;
-p += `\n⚡ QUICK DECISION\n`;
-p += `📊 PROBABILITY: [X]% | Risk: [LOW/MED/HIGH]\n`;
-p += `✅ [PROCEED/MORE DOCS/REJECT] — [one line reason]\n`;
-p += `━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   return p;
 }
@@ -396,6 +391,193 @@ async function showMissing(chatId, s) {
 }
 
 // ============================================================
+// CLASSIFY DOCUMENTS
+// ============================================================
+const ILOVEPDF_PUBLIC = process.env.ILOVEPDF_PUBLIC;
+const CLASSIFY_PENDING = {};
+
+async function classifyDocuments(chatId, s) {
+  try {
+    if (s.docs.length === 0) {
+      await tg(chatId, "❌ No documents uploaded!\nUpload documents first then type CLASSIFY.");
+      return;
+    }
+    await tg(chatId,
+      "🔍 Starting classification...\n" +
+      "Total: " + s.docs.length + " documents\n\n" +
+      "I will show each document and ask you to confirm.\nPlease wait..."
+    );
+    CLASSIFY_PENDING[chatId] = {
+      ids            : s.ids.slice(),
+      names          : s.docs.slice(),
+      classifications: new Array(s.ids.length).fill(null),
+      currentIndex   : 0
+    };
+    await classifyNext(chatId);
+  } catch(err) {
+    console.error("classifyDocuments error:", err);
+    await tg(chatId, "❌ Error: " + err.message);
+    await showMainMenu(chatId);
+  }
+}
+
+async function classifyNext(chatId) {
+  const p = CLASSIFY_PENDING[chatId];
+  if (!p) return;
+  const idx = p.currentIndex;
+  if (idx >= p.ids.length) {
+    await createClassifiedPDFs(chatId);
+    return;
+  }
+  try {
+    await tg(chatId, "🔍 Classifying " + (idx+1) + " of " + p.ids.length + "...");
+    const file = await downloadFile(p.ids[idx]);
+    if (!file) {
+      p.classifications[idx] = "Other Document";
+      p.currentIndex++;
+      await classifyNext(chatId);
+      return;
+    }
+    const isPDF = file.mimeType === "application/pdf";
+    let docType = "Other Document";
+    if (!isPDF) {
+      const b64 = file.buffer.toString("base64");
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method : "POST",
+        headers: {"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+        body   : JSON.stringify({
+          model:"claude-haiku-4-5", max_tokens:50,
+          messages:[{role:"user", content:[
+            {type:"image", source:{type:"base64", media_type:file.mimeType, data:b64}},
+            {type:"text",  text:"Identify this document. Reply with ONLY one label:\nPAN Card\nAadhar Card\nBank Statement\nSalary Slip\nITR\nGST Certificate\nProperty Document\nForm 16\nOffer Letter\nLoan Statement\nOther Document\n\nOne label only."}
+          ]}]
+        })
+      });
+      const data = await res.json();
+      if (data.content && data.content[0]) docType = data.content[0].text.trim();
+    } else {
+      docType = "PDF Document";
+    }
+    p.classifications[idx] = docType;
+    // Send image back with classification
+    if (!isPDF) {
+      const FormData = require("form-data");
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append("caption",
+        "📄 Document " + (idx+1) + " of " + p.ids.length + "\n" +
+        "━━━━━━━━━━━━━━━━━━\n" +
+        "🤖 I think this is: " + docType + "\n\n" +
+        "Reply YES if correct\nOr tell me what it is (e.g. Salary Slip)"
+      );
+      form.append("photo", file.buffer, {filename:"doc.jpg", contentType:file.mimeType});
+      await fetch(TG + "/sendPhoto", {method:"POST", headers:form.getHeaders(), body:form});
+    } else {
+      await tg(chatId,
+        "📄 Document " + (idx+1) + " of " + p.ids.length + " (PDF)\n" +
+        "━━━━━━━━━━━━━━━━━━\n" +
+        "🤖 I think this is: " + docType + "\n\n" +
+        "Reply YES if correct\nOr tell me what it is"
+      );
+    }
+  } catch(err) {
+    p.classifications[idx] = "Other Document";
+    p.currentIndex++;
+    await classifyNext(chatId);
+  }
+}
+
+async function createClassifiedPDFs(chatId) {
+  const p = CLASSIFY_PENDING[chatId];
+  if (!p) return;
+  await tg(chatId,
+    "✅ All classified!\n\n📋 SUMMARY\n━━━━━━━━━━━━━━━━━━\n" +
+    p.classifications.map(function(c,i){ return (i+1) + ". " + c; }).join("\n") +
+    "\n\n⏳ Creating separate PDFs..."
+  );
+  // Group by type
+  const groups = {};
+  p.classifications.forEach(function(type, i) {
+    if (!groups[type]) groups[type] = [];
+    groups[type].push(p.ids[i]);
+  });
+  // Get ilovepdf token
+  let token = null;
+  try {
+    const ar = await fetch("https://api.ilovepdf.com/v1/auth", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})
+    });
+    const ad = await ar.json();
+    token = ad.token;
+  } catch(e) {
+    await tg(chatId, "❌ ilovepdf auth failed: " + e.message);
+    delete CLASSIFY_PENDING[chatId];
+    await showMainMenu(chatId);
+    return;
+  }
+  if (!token) {
+    await tg(chatId, "❌ Could not authenticate with ilovepdf!");
+    delete CLASSIFY_PENDING[chatId];
+    await showMainMenu(chatId);
+    return;
+  }
+  let successCount = 0;
+  for (const docType in groups) {
+    const fileIds = groups[docType];
+    try {
+      const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/imagepdf", {method:"GET", headers:{"Authorization":"Bearer " + token}});
+      const taskData = await taskRes.json();
+      const server   = taskData.server;
+      const taskId   = taskData.task;
+      if (!server || !taskId) continue;
+      const serverFiles = [];
+      for (let i = 0; i < fileIds.length; i++) {
+        const file = await downloadFile(fileIds[i]);
+        if (!file) continue;
+        const FD   = require("form-data");
+        const form = new FD();
+        const ext  = file.mimeType === "application/pdf" ? ".pdf" : ".jpg";
+        form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
+        const ur   = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
+        const ud   = await ur.json();
+        if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext, task:taskId});
+      }
+      if (serverFiles.length === 0) continue;
+      const safeName   = docType.replace(/[^a-zA-Z0-9]/g, "_");
+      const pr = await fetch("https://"+server+"/v1/process", {
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+        body:JSON.stringify({task:taskId, tool:"imagepdf", files:serverFiles, output_filename:safeName})
+      });
+      const pd = await pr.json();
+      if (!pd.download_filename) continue;
+      const dr  = await fetch("https://"+server+"/v1/download/"+taskId, {headers:{"Authorization":"Bearer "+token}});
+      const buf = await dr.buffer();
+      const TF  = require("form-data");
+      const tf  = new TF();
+      tf.append("chat_id",  chatId);
+      tf.append("caption",  "📄 " + docType + " (" + fileIds.length + " page" + (fileIds.length>1?"s":"") + ")");
+      tf.append("document", buf, {filename:safeName+".pdf", contentType:"application/pdf"});
+      await fetch(TG+"/sendDocument", {method:"POST", headers:tf.getHeaders(), body:tf});
+      successCount++;
+      await new Promise(function(r){setTimeout(r,500);});
+    } catch(err) {
+      console.error("PDF error for " + docType + ":", err.message);
+      await tg(chatId, "⚠️ Could not create PDF for: " + docType);
+    }
+  }
+  await tg(chatId,
+    "🎉 DONE!\n━━━━━━━━━━━━━━━━━━\n" +
+    "✅ " + successCount + " PDF(s) created!\n\n" +
+    "Forward these PDFs to the lender directly from Telegram!"
+  );
+  delete CLASSIFY_PENDING[chatId];
+  await showMainMenu(chatId);
+}
+
+// ============================================================
+// ============================================================
 // SHOW IMPROVEMENTS
 // ============================================================
 async function showImprove(chatId, s) {
@@ -530,8 +712,8 @@ app.post("/webhook", async (req, res) => {
     const cmd = text.toUpperCase()
       .replace("📊 ", "").replace("📋 ", "")
       .replace("💡 ", "").replace("📤 ", "")
-      .replace("🔄 ", "").replace("📊 ", "")
-      .replace("🏠 NEW LOAN", "HELP")
+      .replace("🔍 ", "").replace("📊 ", "")
+      .replace("🔄 ", "").replace("🏠 NEW LOAN", "HELP")
       .replace(/^\//, "").split("@")[0].trim();
 
     console.log(`📩 Chat ${chatId}: "${cmd}"`);
@@ -593,6 +775,14 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
+    if (cmd === "CLASSIFY") {
+      const s = getSession(chatId);
+      if (!s)                  { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
+      if (s.docs.length === 0) { await tg(chatId, "❌ No documents uploaded!\nUpload documents first."); return; }
+      await classifyDocuments(chatId, s);
+      return;
+    }
+
     if (cmd === "SUBMIT") {
       const s = getSession(chatId);
       if (!s || !s.analysis) { await tg(chatId, "❌ Run ANALYZE first!"); return; }
@@ -602,8 +792,27 @@ app.post("/webhook", async (req, res) => {
 
     if (cmd === "RESET") {
       clearSession(chatId);
+      delete CLASSIFY_PENDING[chatId];
       await tg(chatId, "🔄 Session cleared!\nType HELP to start new analysis.");
       await showMainMenu(chatId);
+      return;
+    }
+
+    // Handle CLASSIFY confirmation responses
+    if (CLASSIFY_PENDING[chatId]) {
+      const p   = CLASSIFY_PENDING[chatId];
+      const idx = p.currentIndex;
+      if (cmd === "YES" || cmd === "Y") {
+        // Confirmed — move to next
+        p.currentIndex++;
+        await classifyNext(chatId);
+      } else {
+        // Customer corrected the type
+        p.classifications[idx] = text.trim();
+        await tg(chatId, "✅ Updated to: " + text.trim());
+        p.currentIndex++;
+        await classifyNext(chatId);
+      }
       return;
     }
 
