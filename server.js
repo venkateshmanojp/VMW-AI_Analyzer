@@ -541,8 +541,9 @@ async function createClassifiedPDFs(chatId) {
         const FD   = require("form-data");
         const form = new FD();
         const ext  = file.mimeType === "application/pdf" ? ".pdf" : ".jpg";
-        form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
-        const ur = await fetch("https://"+server+"/v1/upload?task="+taskId, {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
+        form.append("task", taskId);
+form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
+const ur = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
 
         const ud   = await ur.json();
         console.log("Upload response:", JSON.stringify(ud));
