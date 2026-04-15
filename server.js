@@ -527,6 +527,8 @@ async function createClassifiedPDFs(chatId) {
     const fileIds = groups[docType];
     try {
       const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/imagepdf", {method:"GET", headers:{"Authorization":"Bearer " + token}});
+   console.log("ilovepdf task response:", JSON.stringify(taskData));
+
       const taskData = await taskRes.json();
       const server   = taskData.server;
       const taskId   = taskData.task;
