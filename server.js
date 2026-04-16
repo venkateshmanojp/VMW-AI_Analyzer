@@ -86,7 +86,7 @@ async function showMainMenu(chatId) {
           keyboard: [
             ["📊 ANALYZE",  "📋 MISSING"],
             ["💡 IMPROVE",  "📤 SUBMIT"],
-            ["🔍 CLASSIFY", "📊 STATUS"],
+            ["🔍 CLASSIFY", "📄 PROFILE"],
             ["🔄 RESET",    "🏠 NEW LOAN"]
           ],
           resize_keyboard  : true,
@@ -179,26 +179,46 @@ function buildPrompt(s, docCount) {
   const isHL  = s.code === "HL"  || s.code === "HLBT" || s.code === "HLTU";
   const isBL  = s.code === "BL";
   const isLAP = s.code === "LAP" || s.code === "LAPBT";
+  const isSecured = isHL || isLAP;
 
   let p = `You are an expert Indian loan underwriter for VastMyWealth Advisory.\n\n`;
   p += `Analyze these ${docCount} financial documents for a ${s.name} application.\n`;
   p += `Client self-declared CIBIL: ${s.cibil}\n\n`;
+
+  // Custom instruction if provided
+  if (s.customInstruction) {
+    p += `SPECIAL INSTRUCTIONS FROM RELATIONSHIP MANAGER:\n${s.customInstruction}\n\n`;
+  }
+
   p += `ANALYZE AND PROVIDE:\n`;
-  p += `1. Extract client name from documents\n`;
-  p += `2. Verify name consistency across all documents\n`;
-  p += `3. Check document validity dates\n`;
-  p += `4. Analyze income from salary slips/ITR/bank credits\n`;
-  p += `5. Check bank statement for bounces, EMIs, suspicious transactions\n`;
-  p += `6. Compare declared CIBIL (${s.cibil}) with banking behavior\n`;
-  if (!isPL) p += `7. Check co-applicant documents if present\n`;
-  if (isBT)  p += `8. Analyze existing loan repayment history\n`;
-  if (isBL || isLAP) p += `9. Verify GST/Udyam name matches bank account name\n`;
+  p += `1. Extract client name and DOB/Age from PAN card\n`;
+  p += `2. Extract co-applicant name and DOB/Age from co-app PAN if present\n`;
+  p += `3. Verify name consistency across all documents\n`;
+  p += `4. Check document validity dates\n`;
+  p += `5. Analyze income from salary slips/ITR/bank credits\n`;
+  p += `6. Check bank statement for bounces, EMIs, suspicious transactions\n`;
+  p += `7. Calculate FOIR (Fixed Obligation to Income Ratio) — current and post loan\n`;
+  p += `8. Calculate max EMI paying capacity (based on 50% FOIR)\n`;
+  p += `9. Compare declared CIBIL (${s.cibil}) with banking behavior\n`;
+  if (!isPL) p += `10. Check co-applicant documents if present — extract age, income\n`;
+  if (isBT)  p += `11. Analyze existing loan repayment history\n`;
+  if (isBL || isLAP) p += `12. Verify GST/Udyam name matches bank account name\n`;
+  if (isSecured) {
+    p += `13. PROPERTY ANALYSIS (if property docs present):\n`;
+    p += `    - Identify property type: MCGM/Corporation/Gram Panchayat/SRA/MHADA/CHS/Other\n`;
+    p += `    - Extract property address and CTS/Survey number if available\n`;
+    p += `    - Check Index II for ownership and authority details\n`;
+    p += `    - Check Property Tax Receipt for municipal authority\n`;
+    p += `    - Assess property risk: LOW/MEDIUM/HIGH\n`;
+    p += `    - Calculate LTV ratio if property value mentioned\n`;
+    p += `    - Flag if Gram Panchayat/SRA/Unauthorized — limited lenders\n`;
+  }
 
   p += `\nMINIMUM DOCUMENTS REQUIRED for ${s.name}:\n`;
   if (isPL)  p += `PAN, Aadhar, 3 salary slips OR 2yr ITR, 6m bank statement${isBT ? ", 12m loan statement, sanction letter" : ""}\n`;
-  if (isHL)  p += `PAN, Aadhar, income proof, 6m bank statement, property docs, co-applicant docs${isBT ? ", 12m loan statement, NOC" : ""}\n`;
+  if (isHL)  p += `PAN, Aadhar, income proof, 6m bank statement, property docs (Index II + Property Tax Receipt), co-applicant docs${isBT ? ", 12m loan statement, NOC" : ""}\n`;
   if (isBL)  p += `PAN, Aadhar, GST/Udyam, 12m bank statement, 2yr ITR, co-applicant docs\n`;
-  if (isLAP) p += `PAN, Aadhar, income proof, 12m bank statement, property title docs, co-applicant docs${isBT ? ", 12m loan statement, NOC" : ""}\n`;
+  if (isLAP) p += `PAN, Aadhar, income proof, 12m bank statement, property title docs (Index II + Property Tax Receipt), co-applicant docs${isBT ? ", 12m loan statement, NOC" : ""}\n`;
 
   p += `\nFORMAT RESPONSE CONCISELY AS:\n\n`;
   p += `🤖 VMW AI LOAN ANALYSIS\n`;
@@ -208,15 +228,166 @@ function buildPrompt(s, docCount) {
   p += `Documents: ${docCount} analyzed\n\n`;
   p += `👤 CLIENT\n`;
   p += `Name: [from docs]\n`;
+  p += `Age: [from PAN]\n`;
   p += `Employment: [Salaried/Self-Employed]\n\n`;
-  p += `💰 INCOME\n`;
-  p += `Monthly: [amount] | Balance: [avg] | EMI: [amount]\n\n`;
+  if (!isPL) {
+    p += `👥 CO-APPLICANT\n`;
+    p += `Name: [if present] | Age: [from PAN] | Income: [amount]\n\n`;
+  }
+  p += `💰 INCOME & METRICS\n`;
+  p += `Monthly Income: [amount] | Co-App Income: [if any]\n`;
+  p += `Total Income: [combined]\n`;
+  p += `Existing EMIs: [amount] | Bank Balance Avg: [amount]\n`;
+  p += `FOIR Current: [%] | FOIR Post Loan: [%]\n`;
+  p += `Max EMI Capacity: [amount]\n\n`;
+  if (isSecured) {
+    p += `🏠 PROPERTY\n`;
+    p += `Type: [MCGM/GP/SRA/MHADA/CHS/Other]\n`;
+    p += `Authority: [from docs]\n`;
+    p += `LTV: [% if value available]\n`;
+    p += `Property Risk: [LOW/MEDIUM/HIGH]\n\n`;
+  }
   p += `🔍 CHECKS\n`;
   p += `Name: [✅/❌] | Docs Valid: [✅/❌] | Bounces: [None/count] | Fraud: [LOW/MED/HIGH]\n\n`;
   p += `❌ MISSING: [list briefly]\n\n`;
   p += `📊 PROBABILITY: [X]% | Risk: [LOW/MED/HIGH]\n\n`;
   p += `✅ [PROCEED/MORE DOCS/REJECT] — [one line reason]\n`;
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  return p;
+}
+
+// ============================================================
+// BUILD PROFILE PROMPT
+// ============================================================
+function buildProfilePrompt(s) {
+  const isSecured = s.code === "HL" || s.code === "HLBT" || s.code === "HLTU" ||
+                    s.code === "LAP" || s.code === "LAPBT";
+  const isBT      = s.code.includes("BT");
+  const today     = new Date().toLocaleDateString("en-IN", {day:"2-digit", month:"short", year:"numeric"});
+
+  let purpose = "Fresh Purchase";
+  if (s.code.includes("BT") && s.code.includes("TU")) purpose = "Balance Transfer + Top Up";
+  else if (s.code.includes("BT")) purpose = "Balance Transfer";
+  else if (s.code.includes("TU")) purpose = "Top Up";
+
+  let p = `You are preparing a professional loan applicant profile one-pager for VastMyWealth Advisory.\n\n`;
+  p += `Based on the analysis below, create a clean presentable profile.\n\n`;
+  p += `ANALYSIS DATA:\n${s.analysis}\n\n`;
+
+  if (s.customInstruction) {
+    p += `CORRECTIONS/ADDITIONAL INFO FROM RELATIONSHIP MANAGER:\n${s.customInstruction}\n\n`;
+  }
+
+  if (s.additionalStrengths) {
+    p += `ADDITIONAL STRENGTHS TO INCLUDE:\n${s.additionalStrengths}\n\n`;
+  }
+
+  p += `EMPLOYER TIER CLASSIFICATION:\n`;
+  p += `Tier 1: Government, PSU, MNC, Listed Companies (TCS, Infosys, Wipro, HUL, etc)\n`;
+  p += `Tier 2: Mid-size companies, Private Ltd, well-known brands\n`;
+  p += `Tier 3: Small firms, startups, proprietorship\n\n`;
+
+  p += `CITY CLASSIFICATION:\n`;
+  p += `Metro: Mumbai, Delhi, Bangalore, Chennai, Hyderabad, Kolkata, Pune, Ahmedabad\n`;
+  p += `Tier 1: Surat, Jaipur, Lucknow, Kochi, Chandigarh, Indore, Nagpur\n`;
+  p += `Tier 2: All other cities\n\n`;
+
+  p += `FORMAT THE PROFILE EXACTLY AS BELOW.\n`;
+  p += `Extract all figures from analysis. If not available write N/A.\n`;
+  p += `Calculate Age at Loan End = Current Age + Tenure.\n\n`;
+
+  p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  p += `🏦 VASTMYWEALTH ADVISORY\n`;
+  p += `   LOAN APPLICANT PROFILE\n`;
+  p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  p += `👤 APPLICANT DETAILS\n`;
+  p += `Name: [full name from docs]\n`;
+  p += `Age: [age] years (DOB: [date] — PAN verified)\n`;
+  p += `Age at Loan End: [age + tenure] years\n`;
+  p += `Employment: [Salaried/Self-Employed] — [sector]\n`;
+  p += `Company: [name] ([Tier 1/2/3] — [Govt/MNC/Private etc])\n`;
+  p += `Experience: [years]\n`;
+  p += `City: [city] ([Metro/Tier 1/Tier 2])\n\n`;
+
+  p += `👥 CO-APPLICANT\n`;
+  p += `[If present include below, else write: Not Applicable]\n`;
+  p += `Name: [name]\n`;
+  p += `Age: [age] years (DOB: [date] — PAN verified)\n`;
+  p += `Age at Loan End: [age + tenure] years\n`;
+  p += `Employment: [type]\n`;
+  p += `Income: ₹[amount]/month\n\n`;
+
+  p += `💰 FINANCIAL SUMMARY\n`;
+  p += `Salary Bank: [bank name from bank statement]\n`;
+  p += `Monthly Income: ₹[amount]\n`;
+  p += `Co-App Income: ₹[amount or Not Applicable]\n`;
+  p += `Total Income: ₹[combined]\n`;
+  p += `CIBIL Score: [score] ([Excellent/Good/Fair/Poor])\n`;
+  p += `Cheque Bounces: [None/count]\n\n`;
+
+  p += `📊 OBLIGATION BREAKUP\n`;
+  p += `Personal Loan EMI: ₹[amount or Nil]\n`;
+  p += `Home Loan EMI: ₹[amount or Nil]\n`;
+  p += `Credit Card Outstanding: ₹[amount or Nil]\n`;
+  p += `Other EMIs: ₹[amount or Nil]\n`;
+  p += `Total Fixed Obligations: ₹[total]\n\n`;
+
+  p += `📐 UNDERWRITING METRICS\n`;
+  p += `FOIR Current: [%] [✅ if below 30% / ⚠️ if 30-50% / ❌ if above 50%]\n`;
+  p += `FOIR Post Loan: [%] [✅ if below 50% / ⚠️ if 50-60% / ❌ if above 60%]\n`;
+  p += `Max EMI Capacity: ₹[amount]/month (based on 50% FOIR)\n`;
+  if (isSecured) p += `LTV Ratio: [% or N/A] [✅ if below 75% / ⚠️ if 75-80% / ❌ if above 80%]\n`;
+  p += `\n`;
+
+  if (isSecured) {
+    p += `🏠 PROPERTY DETAILS\n`;
+    p += `Type: [MCGM/Gram Panchayat/SRA/MHADA/CHS/Other]\n`;
+    p += `Authority: [name]\n`;
+    p += `Bank Approved: [YES/NO/Not Checked]\n`;
+    p += `Society Registered: [YES/NO/N/A]\n`;
+    p += `Deviation: [None/describe if any]\n`;
+    p += `Property Risk: [LOW/MEDIUM/HIGH]\n\n`;
+  }
+
+  p += `🏦 LOAN REQUIREMENT\n`;
+  p += `Type: [loan type]\n`;
+  p += `Purpose: ${purpose}\n`;
+  p += `Amount: ₹[amount]\n`;
+  p += `Tenure Requested: [years]\n`;
+  p += `Expected Interest Rate: [if mentioned, else: As per best available rate]\n\n`;
+
+  p += `📊 PROFILE STRENGTH\n`;
+  p += `Overall Score: [X]/100\n`;
+  p += `Income Stability: [✅/⚠️/❌] [brief note]\n`;
+  p += `Employer Category: [✅/⚠️/❌] [Tier + type]\n`;
+  p += `CIBIL: [✅/⚠️/❌] [brief note]\n`;
+  p += `Documents: [✅/⚠️/❌] [brief note]\n`;
+  p += `Debt Ratio: [✅/⚠️/❌] [brief note]\n`;
+  p += `Repayment History: [✅/⚠️/❌] [brief note]\n`;
+  if (isSecured) p += `Property: [✅/⚠️/❌] [brief note]\n`;
+  p += `\n`;
+
+  p += `⭐ ADDITIONAL STRENGTHS\n`;
+  p += `[List strengths from analysis + any provided by RM]\n`;
+  p += `[If none available write: None mentioned]\n\n`;
+
+  p += `📋 DOCUMENTS VERIFIED\n`;
+  p += `[List each document uploaded with ✅]\n\n`;
+
+  p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  p += `Prepared by: VastMyWealth Advisory\n`;
+  p += `Date: ${today}\n`;
+  p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  p += `IMPORTANT RULES:\n`;
+  p += `1. Extract ALL figures directly from analysis — do not invent\n`;
+  p += `2. If field not available — write N/A\n`;
+  p += `3. Calculate Age at Loan End accurately\n`;
+  p += `4. Classify employer tier based on company name\n`;
+  p += `5. Identify salary bank from bank statement header\n`;
+  p += `6. Break down obligations from bank statement debits\n`;
+  p += `7. Classify city correctly as Metro/Tier 1/Tier 2`;
 
   return p;
 }
@@ -541,13 +712,11 @@ async function createClassifiedPDFs(chatId) {
         const FD   = require("form-data");
         const form = new FD();
         const ext  = file.mimeType === "application/pdf" ? ".pdf" : ".jpg";
-        form.append("task", taskId);
-form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
-const ur = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
-
+        form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
+        const ur   = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
         const ud   = await ur.json();
         console.log("Upload response:", JSON.stringify(ud));
-        if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext});
+        if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext, task:taskId});
       }
       if (serverFiles.length === 0) { console.log("No files uploaded for " + docType); continue; }
       const safeName   = docType.replace(/[^a-zA-Z0-9]/g, "_");
@@ -584,6 +753,76 @@ const ur = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{
 }
 
 // ============================================================
+// ============================================================
+// GENERATE PROFILE ONE-PAGER
+// ============================================================
+async function generateProfile(chatId, s) {
+  try {
+    if (!s.analysis) {
+      await tg(chatId, "❌ Please run ANALYZE first!\nI need the analysis to generate the profile.");
+      await showMainMenu(chatId);
+      return;
+    }
+
+    await tg(chatId, "⏳ Generating applicant profile...\nPlease wait 20-30 seconds!");
+
+    const res = await fetch(AI, {
+      method : "POST",
+      headers: {
+        "Content-Type"     : "application/json",
+        "x-api-key"        : ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model     : "claude-sonnet-4-20250514",
+        max_tokens: 2000,
+        messages  : [{role:"user", content: buildProfilePrompt(s)}]
+      })
+    });
+
+    const result = await res.json();
+    if (result.content && result.content[0]) {
+      const profile = result.content[0].text;
+      s.lastProfile  = profile;
+      saveSession(chatId, s);
+
+      // Send in chunks if too long
+      if (profile.length > 3800) {
+        const lines  = profile.split("\n");
+        let chunk    = "";
+        const chunks = [];
+        for (const line of lines) {
+          if ((chunk + "\n" + line).length > 3800) {
+            chunks.push(chunk);
+            chunk = line;
+          } else {
+            chunk = chunk ? chunk + "\n" + line : line;
+          }
+        }
+        if (chunk) chunks.push(chunk);
+        for (const c of chunks) await tg(chatId, c);
+      } else {
+        await tg(chatId, profile);
+      }
+
+      await tg(chatId,
+        "📋 Profile generated!\n\n" +
+        "To update:\n" +
+        "• Type any corrections e.g. 'Income is 95000 not 85000'\n" +
+        "• Or add strengths e.g. 'Additional strength: Government employee, pension after retirement'\n" +
+        "• Then type PROFILE again for fresh report ✅"
+      );
+    } else {
+      await tg(chatId, "❌ Profile generation failed!\n" + JSON.stringify(result).substring(0,200));
+    }
+    await showMainMenu(chatId);
+  } catch(err) {
+    console.error("generateProfile error:", err);
+    await tg(chatId, "❌ Profile error: " + err.message);
+    await showMainMenu(chatId);
+  }
+}
+
 // ============================================================
 // SHOW IMPROVEMENTS
 // ============================================================
@@ -719,7 +958,7 @@ app.post("/webhook", async (req, res) => {
     const cmd = text.toUpperCase()
       .replace("📊 ", "").replace("📋 ", "")
       .replace("💡 ", "").replace("📤 ", "")
-      .replace("🔍 ", "").replace("📊 ", "")
+      .replace("🔍 ", "").replace("📄 ", "")
       .replace("🔄 ", "").replace("🏠 NEW LOAN", "HELP")
       .replace(/^\//, "").split("@")[0].trim();
 
@@ -782,6 +1021,13 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
+    if (cmd === "PROFILE") {
+      const s = getSession(chatId);
+      if (!s) { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
+      await generateProfile(chatId, s);
+      return;
+    }
+
     if (cmd === "CLASSIFY") {
       const s = getSession(chatId);
       if (!s)                  { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
@@ -837,6 +1083,29 @@ app.post("/webhook", async (req, res) => {
         `Remaining: ${s.docs.length} docs\n\n` +
         `Upload correct document and type ANALYZE!`
       );
+      await showMainMenu(chatId);
+      return;
+    }
+
+    // Handle custom instructions — free text when session active
+    const s = getSession(chatId);
+    if (s && text && !cmd.match(/^(HELP|START|ANALYZE|MISSING|IMPROVE|PROFILE|CLASSIFY|SUBMIT|RESET|REMOVE|STATUS|NEW)$/)) {
+      // Check if it's additional strengths
+      if (text.toLowerCase().includes("additional strength") ||
+          text.toLowerCase().includes("strength:") ||
+          text.toLowerCase().includes("strong point")) {
+        s.additionalStrengths = text;
+        saveSession(chatId, s);
+        await tg(chatId, "✅ Additional strengths saved!\nType PROFILE to generate updated report.");
+      } else {
+        // Save as custom instruction
+        s.customInstruction = text;
+        saveSession(chatId, s);
+        await tg(chatId,
+          "✅ Instruction saved: " + text.substring(0,100) + "\n\n" +
+          "Type ANALYZE to analyze with this instruction\nOr PROFILE to regenerate profile with corrections!"
+        );
+      }
       await showMainMenu(chatId);
       return;
     }
