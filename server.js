@@ -162,7 +162,12 @@ async function downloadFile(fileId) {
     const fileUrl  = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
     const fileRes  = await fetch(fileUrl);
     const buffer   = await fileRes.buffer();
-    const mimeType = filePath.endsWith(".pdf") ? "application/pdf" : "image/jpeg";
+    let mimeType = "image/jpeg";
+if (filePath.endsWith(".pdf"))  mimeType = "application/pdf";
+else if (filePath.endsWith(".png"))  mimeType = "image/png";
+else if (filePath.endsWith(".webp")) mimeType = "image/webp";
+else if (filePath.endsWith(".heic")) mimeType = "image/jpeg";
+
     return {buffer, mimeType, name: filePath.split("/").pop()};
   } catch(e) {
     console.error("downloadFile error:", e.message);
