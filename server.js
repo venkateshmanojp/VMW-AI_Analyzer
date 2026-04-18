@@ -441,35 +441,6 @@ async function runAnalysis(chatId, s) {
 
     const result = await aiRes.json();
     console.log("AI status:", aiRes.status);
-    // Handle password protected PDF
-if (result.error && result.error.message && result.error.message.includes("password protected")) {
-  const password = data.bankPassword || "";
-  if (!password) {
-    await tg(chatId, `⚠️ Bank statement is password protected!\nPlease enter password in portal and retry.`);
-    return;
-  }
-  console.log("Attempting ilovepdf unlock...");
-  const unlocked = await unlockPDF(data.file_bankSal, password);
-  if (!unlocked) {
-    await tg(chatId, `⚠️ Could not unlock bank statement!\nPlease check password and retry.`);
-    return;
-  }
-  console.log("PDF unlocked! Retrying Claude...");
-  for (let i = 0; i < content.length; i++) {
-    if (content[i].type === "document") {
-      content[i] = {type:"document", source:{type:"base64", media_type:"application/pdf", data:unlocked.replace("PDF:","") }};
-      break;
-    }
-  }
-  const retryRes = await fetch(AI, {
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
-    body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1500, messages:[{role:"user", content}]})
-  });
-  result = await retryRes.json();
-  console.log("Retry status:", retryRes.status);
-}
-
 
     if (result.error && result.error.message && result.error.message.includes("100 PDF pages")) {
       await tg(chatId,
@@ -1177,8 +1148,6 @@ app.post("/analyze-portal", async (req, res) => {
     const chatId   = process.env.CHAT_ID || "1471849538";
 
     console.log(`Portal analysis started: ${name} | ${loanType} | ${mobile}`);
-    console.log(`Bank password: "${data.bankPassword || 'NOT RECEIVED'}"`);
-
 
     await tg(chatId, `⏳ AI analyzing documents for ${name}...\nLoan: ${loanType}\nPlease wait 30-60 seconds!`);
 
@@ -1304,39 +1273,9 @@ app.post("/analyze-portal", async (req, res) => {
       })
     });
 
-    let result = await aiRes.json();
+    const result = await aiRes.json();
     console.log("Claude API status:", aiRes.status);
     console.log("Claude response:", JSON.stringify(result).substring(0,300));
-    // Handle password protected PDF
-    if (result.error && result.error.message && result.error.message.includes("password protected")) {
-      const password = data.bankPassword || "";
-      if (!password) {
-        await tg(chatId, `⚠️ Bank statement is password protected!\nPlease enter password in portal and retry.`);
-        return;
-      }
-      console.log("Attempting ilovepdf unlock...");
-      const unlocked = await unlockPDF(data.file_bankSal, password);
-      if (!unlocked) {
-        await tg(chatId, `⚠️ Could not unlock!\nPlease check password and retry.`);
-        return;
-      }
-      console.log("PDF unlocked! Retrying Claude...");
-      for (let i = 0; i < content.length; i++) {
-        if (content[i].type === "document") {
-          content[i] = {type:"document", source:{type:"base64", media_type:"application/pdf", data:unlocked.replace("PDF:","")}};
-          break;
-        }
-      }
-      const retryRes = await fetch(AI, {
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
-        body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1500, messages:[{role:"user", content}]})
-      });
-      result = await retryRes.json();
-      console.log("Retry status:", retryRes.status);
-    }
-
-
 
     if (!result.content || !result.content[0]) {
       await tg(chatId, `❌ AI analysis failed for ${name}!\nError: ${JSON.stringify(result).substring(0,200)}\nPlease retry or review manually.`);
@@ -1356,12 +1295,16 @@ app.post("/analyze-portal", async (req, res) => {
     // Save profile to Apps Script Master Sheet
     if (APPS_SCRIPT && mobile) {
       try {
+        // Clean mobile — last 10 digits only
+        const cleanMobile = mobile.replace(/\D/g,"").slice(-10);
+        const profileText = (dsaProfile || fullText).substring(0, 1500);
         const saveUrl = APPS_SCRIPT +
           "?action=saveProfile" +
-          "&mobile="  + encodeURIComponent(mobile) +
-          "&profile=" + encodeURIComponent((dsaProfile || fullText).substring(0, 2000));
-        await fetch(saveUrl);
-        console.log("Profile saved to Master Sheet");
+          "&mobile="  + encodeURIComponent(cleanMobile) +
+          "&profile=" + encodeURIComponent(profileText);
+        const saveRes    = await fetch(saveUrl);
+        const saveResult = await saveRes.json();
+        console.log("saveProfile response:", JSON.stringify(saveResult));
       } catch(e) {
         console.error("Save profile error:", e.message);
       }
@@ -1401,63 +1344,6 @@ app.post("/analyze-portal", async (req, res) => {
     } catch(e) {}
   }
 });
-// ============================================================
-// UNLOCK PDF VIA ILOVEPDF
-// ============================================================
-async function unlockPDF(b64, password) {
-  try {
-    const ILOVEPDF_PUBLIC = process.env.ILOVEPDF_PUBLIC;
-    const authRes  = await fetch("https://api.ilovepdf.com/v1/auth", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})
-    });
-    const authData = await authRes.json();
-    const token    = authData.token;
-    if (!token) { console.log("ilovepdf auth failed"); return null; }
-
-    const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/unlock", {
-      method:"GET", headers:{"Authorization":"Bearer " + token}
-    });
-    const taskData = await taskRes.json();
-    const server   = taskData.server;
-    const taskId   = taskData.task;
-    if (!server || !taskId) { console.log("ilovepdf task failed"); return null; }
-
-    const rawB64   = b64.startsWith("PDF:") ? b64.replace("PDF:","") : b64;
-    const buffer   = Buffer.from(rawB64, "base64");
-    const FormData = require("form-data");
-    const form     = new FormData();
-    form.append("task", taskId);
-    form.append("file", buffer, {filename:"bank.pdf", contentType:"application/pdf"});
-    const uploadRes  = await fetch("https://" + server + "/v1/upload", {
-      method:"POST", headers:{"Authorization":"Bearer " + token, ...form.getHeaders()}, body:form
-    });
-    const uploadData = await uploadRes.json();
-    if (!uploadData.server_filename) { console.log("ilovepdf upload failed"); return null; }
-
-    const processRes = await fetch("https://" + server + "/v1/process", {
-      method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer " + token},
-      body:JSON.stringify({
-        task:taskId, tool:"unlock",
-        files:[{server_filename:uploadData.server_filename, filename:"bank.pdf", task:taskId, password:password}]
-      })
-    });
-    const processData = await processRes.json();
-    console.log("ilovepdf process:", JSON.stringify(processData).substring(0,100));
-    if (!processData.download_filename) return null;
-
-    const downloadRes = await fetch("https://" + server + "/v1/download/" + taskId, {
-      headers:{"Authorization":"Bearer " + token}
-    });
-    const pdfBuffer = await downloadRes.buffer();
-    console.log("✅ PDF unlocked successfully!");
-    return "PDF:" + pdfBuffer.toString("base64");
-
-  } catch(e) {
-    console.error("unlockPDF error:", e.message);
-    return null;
-  }
-}
 
 // ============================================================
 // HEALTH CHECK
