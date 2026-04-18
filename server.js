@@ -636,6 +636,111 @@ app.post("/webhook", async (req, res) => {
     console.error("Webhook error:", err.message);
   }
 });
+// ============================================================
+// ANALYZE PORTAL ENDPOINT
+// ============================================================
+app.post("/analyze-portal", async (req, res) => {
+  res.json({success: true, message: "Analysis started"});
+  try {
+    const data    = req.body;
+    const name    = data.name     || "Unknown";
+    const mobile  = data.mobile   || "";
+    const loanType= data.loanType || "Personal Loan";
+    const empType = data.empType  || "Salaried";
+    const cibil   = data.cibil    || "Not Checked";
+    const chatId  = "1471849538";
+
+    console.log(`Portal analysis: ${name} | ${loanType} | ${mobile}`);
+    await tg(chatId, `⏳ AI analyzing documents for ${name}...\nLoan: ${loanType}\nPlease wait 30-60 seconds!`);
+
+    const content  = [];
+    const docKeys  = ["file_pan","file_aadhar","file_salary1","file_bankSal","file_itr1","file_extra1","file_extra2","file_extra3"];
+    const docNames = ["PAN Card","Aadhar Card","Salary Slip","Bank Statement","ITR","Doc 1","Doc 2","Doc 3"];
+    let   docCount = 0;
+    const docsReceived = [];
+
+    for (let i = 0; i < docKeys.length; i++) {
+      const b64 = data[docKeys[i]];
+      if (!b64 || b64.length < 10) continue;
+      try {
+        const isPDF  = b64.startsWith("PDF:");
+        const rawB64 = isPDF ? b64.replace("PDF:","") : b64;
+        const mime   = isPDF ? "application/pdf" : "image/jpeg";
+        if (isPDF) {
+          content.push({type:"document", source:{type:"base64", media_type:"application/pdf", data:rawB64}});
+        } else {
+          content.push({type:"image", source:{type:"base64", media_type:mime, data:rawB64}});
+        }
+        docCount++;
+        docsReceived.push(docNames[i]);
+      } catch(e) { console.error(`Doc error ${docNames[i]}: ${e.message}`); }
+    }
+
+    if (docCount === 0) {
+      await tg(chatId, `⚠️ No readable documents for ${name}!\nPlease check uploads and retry.`);
+      return;
+    }
+
+    const lt        = loanType.toUpperCase();
+    const isSecured = lt.includes("HOME") || lt.includes("PROPERTY") || lt.includes("AGAINST");
+
+    let prompt = `You are an expert Indian loan underwriter for VastMyWealth Advisory.\n\n`;
+    prompt += `Analyze ${docCount} documents for: ${name}\n`;
+    prompt += `Loan: ${loanType} | Employment: ${empType} | CIBIL: ${cibil}\n\n`;
+    prompt += `EXTRACT:\n`;
+    prompt += `1. Name and Age from PAN\n`;
+    prompt += `2. Income from salary slips or bank credits\n`;
+    prompt += `3. Bank statement — bounces, EMIs, average balance\n`;
+    prompt += `4. FOIR current and post loan\n`;
+    prompt += `5. Salary bank name\n`;
+    prompt += `6. Employer name and Tier (1/2/3)\n`;
+    prompt += `7. City from address\n`;
+    prompt += `8. Red flags\n`;
+    if (isSecured) prompt += `9. Property type (MCGM/GP/SRA/MHADA/CHS) and LTV\n`;
+    prompt += `\nFORMAT:\n\n`;
+    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    prompt += `✅ PORTAL SUBMISSION ANALYSIS\n`;
+    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    prompt += `👤 Name: [from PAN] | Age: [from PAN]\n`;
+    prompt += `🏢 Employer: [name] ([Tier 1/2/3])\n`;
+    prompt += `🏦 Salary Bank: [bank name]\n`;
+    prompt += `💰 Monthly Income: ₹[amount]\n`;
+    prompt += `📊 CIBIL: ${cibil}\n`;
+    prompt += `💳 Existing EMIs: ₹[amount]\n`;
+    prompt += `📐 FOIR Current: [%] | Post Loan: [%]\n`;
+    prompt += `🏠 Loan: ${loanType}\n`;
+    if (isSecured) prompt += `🏠 Property: [type] | Risk: [LOW/MED/HIGH]\n`;
+    prompt += `⚠️ Red Flags: [None or list]\n`;
+    prompt += `📋 Docs: ${docsReceived.join(", ")}\n`;
+    prompt += `📊 Probability: [X]%\n`;
+    prompt += `✅ Recommendation: [PROCEED/MORE DOCS/REJECT]\n`;
+    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    prompt += `If field not readable write N/A.`;
+
+    content.push({type:"text", text:prompt});
+
+    const aiRes = await fetch(AI, {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1000, messages:[{role:"user", content}]})
+    });
+
+    const result = await aiRes.json();
+    if (!result.content || !result.content[0]) {
+      await tg(chatId, `❌ AI analysis failed for ${name}!\nPlease review manually in CRM.`);
+      return;
+    }
+
+    await tg(chatId, result.content[0].text);
+    console.log(`✅ Portal analysis complete: ${name}`);
+
+  } catch(err) {
+    console.error("analyze-portal error:", err.message);
+    try {
+      await tg("1471849538", `❌ Analysis error!\n${err.message}\nReview manually in CRM.`);
+    } catch(e) {}
+  }
+});
 
 // ============================================================
 // HEALTH CHECK
