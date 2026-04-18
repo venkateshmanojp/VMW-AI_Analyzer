@@ -1287,6 +1287,10 @@ app.post("/analyze-portal", async (req, res) => {
     const result = await aiRes.json();
     console.log("Claude API status:", aiRes.status);
     console.log("Claude response:", JSON.stringify(result).substring(0,300));
+if (result.error && result.error.message && result.error.message.includes("password protected")) {
+  await tg(chatId, `⚠️ One document is password protected!\nPlease upload unlocked version and retry.\n\nHint: Usually bank statements are password protected with DOB or mobile number.`);
+  return;
+}
 
     if (!result.content || !result.content[0]) {
       await tg(chatId, `❌ AI analysis failed for ${name}!\nError: ${JSON.stringify(result).substring(0,200)}\nPlease retry or review manually.`);
