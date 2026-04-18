@@ -1282,17 +1282,15 @@ app.post("/analyze-portal", async (req, res) => {
       return;
     }
 
-    const fullText    = result.content[0].text;
+    const fullText   = result.content[0].text;
 
     // Split into brief and DSA profile
     const parts      = fullText.split("---DSA_PROFILE_START---");
-const briefText  = parts[0].trim();
-const dsaProfile = parts.length > 1 ? parts[1].replace("---DSA_PROFILE_END---","").trim() : fullText;
+    const briefText  = parts[0].trim();
+    const dsaProfile = parts.length > 1 ? parts[1].replace("---DSA_PROFILE_END---","").trim() : "";
 
-// If split failed — send full text
-const telegramMsg = briefText.length > 10 ? briefText : fullText.substring(0, 3000);
-
-    const dsaProfile  = parts[1] ? parts[1].replace("---DSA_PROFILE_END---","").trim() : "";
+    // If split failed use full text for Telegram
+    const telegramMsg = briefText.length > 20 ? briefText : fullText.substring(0, 3000);
 
     // Save profile to Apps Script Master Sheet
     if (APPS_SCRIPT && mobile) {
@@ -1300,7 +1298,7 @@ const telegramMsg = briefText.length > 10 ? briefText : fullText.substring(0, 30
         const saveUrl = APPS_SCRIPT +
           "?action=saveProfile" +
           "&mobile="  + encodeURIComponent(mobile) +
-          "&profile=" + encodeURIComponent(dsaProfile.substring(0, 2000));
+          "&profile=" + encodeURIComponent((dsaProfile || fullText).substring(0, 2000));
         await fetch(saveUrl);
         console.log("Profile saved to Master Sheet");
       } catch(e) {
@@ -1308,15 +1306,29 @@ const telegramMsg = briefText.length > 10 ? briefText : fullText.substring(0, 30
       }
     }
 
-    // Send brief profile to Telegram with DSA allocation buttons
+    // Send brief profile to Telegram
     const refId = "VMW-" + mobile.slice(-4);
-    await tg(chatId,
-      `✅ AI ANALYSIS COMPLETE\n` +
+    const msgToSend = `✅ AI ANALYSIS COMPLETE\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📋 ${refId} | ${isAdmin ? "Admin Upload" : "Customer Upload"}\n\n` +
       telegramMsg +
-      `\n\n👉 Review full profile in CRM before allocating DSA`
-    );
+      `\n\n👉 Review in CRM before allocating DSA`;
+
+    // Send in chunks if too long
+    if (msgToSend.length > 3800) {
+      const chunks = [];
+      let remaining = msgToSend;
+      while (remaining.length > 0) {
+        chunks.push(remaining.substring(0, 3800));
+        remaining = remaining.substring(3800);
+      }
+      for (const chunk of chunks) {
+        await tg(chatId, chunk);
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } else {
+      await tg(chatId, msgToSend);
+    }
 
     console.log(`✅ Portal analysis complete: ${name}`);
 
