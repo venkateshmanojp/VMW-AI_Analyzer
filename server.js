@@ -1307,6 +1307,36 @@ app.post("/analyze-portal", async (req, res) => {
     let result = await aiRes.json();
     console.log("Claude API status:", aiRes.status);
     console.log("Claude response:", JSON.stringify(result).substring(0,300));
+    // Handle password protected PDF
+    if (result.error && result.error.message && result.error.message.includes("password protected")) {
+      const password = data.bankPassword || "";
+      if (!password) {
+        await tg(chatId, `⚠️ Bank statement is password protected!\nPlease enter password in portal and retry.`);
+        return;
+      }
+      console.log("Attempting ilovepdf unlock...");
+      const unlocked = await unlockPDF(data.file_bankSal, password);
+      if (!unlocked) {
+        await tg(chatId, `⚠️ Could not unlock!\nPlease check password and retry.`);
+        return;
+      }
+      console.log("PDF unlocked! Retrying Claude...");
+      for (let i = 0; i < content.length; i++) {
+        if (content[i].type === "document") {
+          content[i] = {type:"document", source:{type:"base64", media_type:"application/pdf", data:unlocked.replace("PDF:","")}};
+          break;
+        }
+      }
+      const retryRes = await fetch(AI, {
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1500, messages:[{role:"user", content}]})
+      });
+      result = await retryRes.json();
+      console.log("Retry status:", retryRes.status);
+    }
+
+
 
     if (!result.content || !result.content[0]) {
       await tg(chatId, `❌ AI analysis failed for ${name}!\nError: ${JSON.stringify(result).substring(0,200)}\nPlease retry or review manually.`);
