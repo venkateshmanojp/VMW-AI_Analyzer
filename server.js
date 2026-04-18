@@ -1285,8 +1285,13 @@ app.post("/analyze-portal", async (req, res) => {
     const fullText    = result.content[0].text;
 
     // Split into brief and DSA profile
-    const parts       = fullText.split("---DSA_PROFILE_START---");
-    const briefText   = parts[0].trim();
+    const parts      = fullText.split("---DSA_PROFILE_START---");
+const briefText  = parts[0].trim();
+const dsaProfile = parts.length > 1 ? parts[1].replace("---DSA_PROFILE_END---","").trim() : fullText;
+
+// If split failed — send full text
+const telegramMsg = briefText.length > 10 ? briefText : fullText.substring(0, 3000);
+
     const dsaProfile  = parts[1] ? parts[1].replace("---DSA_PROFILE_END---","").trim() : "";
 
     // Save profile to Apps Script Master Sheet
@@ -1309,7 +1314,7 @@ app.post("/analyze-portal", async (req, res) => {
       `✅ AI ANALYSIS COMPLETE\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📋 ${refId} | ${isAdmin ? "Admin Upload" : "Customer Upload"}\n\n` +
-      briefText +
+      telegramMsg +
       `\n\n👉 Review full profile in CRM before allocating DSA`
     );
 
