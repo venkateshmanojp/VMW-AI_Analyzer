@@ -251,6 +251,7 @@ async function runAnalysis(chatId, s) {
     }
 
     content.push({type:"text", text: buildPrompt(s, downloaded)});
+console.log(`Sending ${docCount} docs to Claude. Content items: ${content.length}`);
 
     const aiRes = await fetch(AI, {
       method : "POST",
@@ -267,6 +268,9 @@ async function runAnalysis(chatId, s) {
     });
 
     const result = await aiRes.json();
+    console.log(`Claude status: ${aiRes.status}`);
+console.log(`Claude response: ${JSON.stringify(result).substring(0,300)}`);
+
     console.log("AI status:", aiRes.status);
 
     if (result.error && result.error.message && result.error.message.includes("100 PDF pages")) {
