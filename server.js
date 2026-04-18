@@ -1211,60 +1211,49 @@ app.post("/analyze-portal", async (req, res) => {
     if (income) prompt += `Declared Income: ${income}\n`;
     prompt += `\n`;
     prompt += `EXTRACT AND ANALYZE:\n`;
-    prompt += `1. Name and Age from PAN card\n`;
-    prompt += `2. Income from salary slips or bank credits\n`;
-    prompt += `3. Bank statement — bounces, EMIs, average balance\n`;
-    prompt += `4. FOIR — current and estimated post loan\n`;
-    prompt += `5. Salary bank name\n`;
-    prompt += `6. Employer name and category (Tier 1/2/3)\n`;
-    prompt += `7. City from address documents\n`;
-    prompt += `8. Any red flags or inconsistencies\n`;
+    prompt += `1. Name from PAN card\n`;
+    prompt += `2. Customer type — Salaried or Self Employed\n`;
+    prompt += `3. Loan amount if mentioned\n`;
+    prompt += `4. Salary credit amount (if salaried) OR average bank balance (if self employed)\n`;
+    prompt += `5. Existing EMIs from bank statement\n`;
+    prompt += `6. List of documents uploaded\n`;
+    prompt += `7. Any red flags\n`;
     if (isSecured) {
-      prompt += `9. Property type if docs available (MCGM/GP/SRA/MHADA/CHS)\n`;
-      prompt += `10. LTV ratio if property value mentioned\n`;
+      prompt += `8. Property type (MCGM/GP/SRA/MHADA/CHS) if docs available\n`;
     }
     prompt += `\nFORMAT AS TWO SECTIONS:\n\n`;
-    prompt += `SECTION 1 — TELEGRAM BRIEF (keep under 20 lines):\n`;
-    prompt += `👤 [Name] | [Age]yrs | [Employment]\n`;
-    prompt += `🏢 [Company] ([Tier])\n`;
-    prompt += `🏦 Salary Bank: [bank]\n`;
-    prompt += `💰 Income: ₹[amount]/month\n`;
-    prompt += `📊 CIBIL: [score]\n`;
-    prompt += `📐 FOIR: [current]% → [post loan]%\n`;
-    prompt += `🏠 Loan: ${loanType}\n`;
+    prompt += `SECTION 1 — TELEGRAM BRIEF:\n`;
+    prompt += `👤 [Name] | [Salaried/Self Employed]\n`;
+    prompt += `🏠 Loan: ${loanType} | Amount: ₹[amount or N/A]\n`;
+    prompt += `📊 CIBIL: ${cibil}\n`;
+    prompt += `💰 ${empType === "Salaried" ? "Salary Credit" : "Avg Bank Balance"}: ₹[amount]\n`;
+    prompt += `💳 Existing EMIs: ₹[amount or None]\n`;
     if (isSecured) prompt += `🏠 Property: [type] | Risk: [LOW/MED/HIGH]\n`;
     prompt += `⚠️ Red Flags: [None or list]\n`;
-    prompt += `📋 Docs: ${docsReceived.join(", ")}\n`;
-    prompt += `📊 Probability: [X]%\n\n`;
+    prompt += `📋 Docs: ${docsReceived.join(", ")}\n\n`;
     prompt += `---DSA_PROFILE_START---\n\n`;
-    prompt += `SECTION 2 — DSA EMAIL PROFILE:\n`;
+    prompt += `SECTION 2 — DSA EMAIL BODY:\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     prompt += `🏦 VASTMYWEALTH ADVISORY\n`;
     prompt += `   LOAN APPLICATION\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     prompt += `👤 APPLICANT\n`;
     prompt += `Name: [from PAN]\n`;
-    prompt += `Age: [from PAN]\n`;
-    prompt += `Employment: [type and sector]\n`;
-    prompt += `Company: [name] ([Tier])\n`;
-    prompt += `City: [city]\n\n`;
-    prompt += `💰 INCOME & FINANCIALS\n`;
-    prompt += `Salary Bank: [bank]\n`;
-    prompt += `Monthly Income: ₹[amount]\n`;
-    prompt += `Existing EMIs: ₹[amount]\n`;
-    prompt += `Net Available: ₹[amount]\n`;
-    prompt += `CIBIL: [score]\n`;
-    prompt += `Cheque Bounces: [None/count]\n\n`;
+    prompt += `Customer Type: ${empType}\n\n`;
     prompt += `🏦 LOAN REQUIREMENT\n`;
     prompt += `Type: ${loanType}\n`;
-    prompt += `Amount: [if mentioned]\n\n`;
+    prompt += `Amount: ₹[if mentioned, else N/A]\n\n`;
+    prompt += `💰 FINANCIAL SUMMARY\n`;
+    prompt += `Credit Score (Self Declared): ${cibil}\n`;
+    prompt += `${empType === "Salaried" ? "Monthly Salary Credit" : "Average Bank Balance"}: ₹[amount]\n`;
+    prompt += `Existing EMIs: ₹[amount or None]\n\n`;
     prompt += `📋 DOCUMENTS AVAILABLE\n`;
     docsReceived.forEach(d => { prompt += `✅ ${d}\n`; });
     prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     prompt += `VastMyWealth Advisory | Manoj: 9594592020\n`;
     prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     prompt += `---DSA_PROFILE_END---\n\n`;
-    prompt += `IMPORTANT: If any field not readable write N/A. Do not invent figures.`;
+    prompt += `IMPORTANT: Extract figures from documents only. Write N/A if not available.`;
 
     content.push({type:"text", text:prompt});
 
@@ -1287,10 +1276,6 @@ app.post("/analyze-portal", async (req, res) => {
     const result = await aiRes.json();
     console.log("Claude API status:", aiRes.status);
     console.log("Claude response:", JSON.stringify(result).substring(0,300));
-if (result.error && result.error.message && result.error.message.includes("password protected")) {
-  await tg(chatId, `⚠️ One document is password protected!\nPlease upload unlocked version and retry.\n\nHint: Usually bank statements are password protected with DOB or mobile number.`);
-  return;
-}
 
     if (!result.content || !result.content[0]) {
       await tg(chatId, `❌ AI analysis failed for ${name}!\nError: ${JSON.stringify(result).substring(0,200)}\nPlease retry or review manually.`);
