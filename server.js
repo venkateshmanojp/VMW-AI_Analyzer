@@ -651,6 +651,10 @@ app.post("/analyze-portal", async (req, res) => {
     const chatId  = "1471849538";
 
     console.log(`Portal analysis: ${name} | ${loanType} | ${mobile}`);
+    console.log(`Doc keys received: ${Object.keys(data).join(", ")}`);
+console.log(`file_pan length: ${(data.file_pan || "").length}`);
+console.log(`file_aadhar length: ${(data.file_aadhar || "").length}`);
+
     await tg(chatId, `⏳ AI analyzing documents for ${name}...\nLoan: ${loanType}\nPlease wait 30-60 seconds!`);
 
     const content  = [];
