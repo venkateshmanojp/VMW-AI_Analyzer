@@ -683,6 +683,7 @@ console.log(`file_aadhar length: ${(data.file_aadhar || "").length}`);
         docsReceived.push(docNames[i]);
       } catch(e) { console.error(`Doc error ${docNames[i]}: ${e.message}`); }
     }
+console.log(`docCount: ${docCount} | docsReceived: ${docsReceived.join(", ")}`);
 
     if (docCount === 0) {
       await tg(chatId, `⚠️ No readable documents for ${name}!\nPlease check uploads and retry.`);
