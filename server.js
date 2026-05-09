@@ -1,16 +1,15 @@
 // ============================================================
-// VMW AI Loan Analyzer — Render.com Node.js Server v4
+// VMW AI Loan Analyzer — Render.com Node.js Server v5
+// Added: /case-summary endpoint for Rahul WhatsApp bot
 // ============================================================
 
 const express  = require("express");
 const fetch    = require("node-fetch");
 const app      = express();
 
-// Increase payload limit for base64 documents
 app.use(express.json({limit: "50mb"}));
 app.use(express.urlencoded({limit: "50mb", extended: true}));
 
-// CORS — allow requests from GitHub Pages and any origin
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -20,7 +19,7 @@ app.use(function(req, res, next) {
 });
 
 // ============================================================
-// CONFIG — All from environment variables
+// CONFIG
 // ============================================================
 const BOT_TOKEN     = process.env.BOT_TOKEN;
 const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY;
@@ -196,7 +195,6 @@ function buildPrompt(s, docCount) {
   p += `Analyze these ${docCount} financial documents for a ${s.name} application.\n`;
   p += `Client self-declared CIBIL: ${s.cibil}\n\n`;
 
-  // Custom instruction if provided
   if (s.customInstruction) {
     p += `SPECIAL INSTRUCTIONS FROM RELATIONSHIP MANAGER:\n${s.customInstruction}\n\n`;
   }
@@ -312,7 +310,6 @@ function buildProfilePrompt(s) {
   p += `🏦 VASTMYWEALTH ADVISORY\n`;
   p += `   LOAN APPLICANT PROFILE\n`;
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
   p += `👤 APPLICANT DETAILS\n`;
   p += `Name: [full name from docs]\n`;
   p += `Age: [age] years (DOB: [date] — PAN verified)\n`;
@@ -321,7 +318,6 @@ function buildProfilePrompt(s) {
   p += `Company: [name] ([Tier 1/2/3] — [Govt/MNC/Private etc])\n`;
   p += `Experience: [years]\n`;
   p += `City: [city] ([Metro/Tier 1/Tier 2])\n\n`;
-
   p += `👥 CO-APPLICANT\n`;
   p += `[If present include below, else write: Not Applicable]\n`;
   p += `Name: [name]\n`;
@@ -329,7 +325,6 @@ function buildProfilePrompt(s) {
   p += `Age at Loan End: [age + tenure] years\n`;
   p += `Employment: [type]\n`;
   p += `Income: ₹[amount]/month\n\n`;
-
   p += `💰 FINANCIAL SUMMARY\n`;
   p += `Salary Bank: [bank name from bank statement]\n`;
   p += `Monthly Income: ₹[amount]\n`;
@@ -337,21 +332,18 @@ function buildProfilePrompt(s) {
   p += `Total Income: ₹[combined]\n`;
   p += `CIBIL Score: [score] ([Excellent/Good/Fair/Poor])\n`;
   p += `Cheque Bounces: [None/count]\n\n`;
-
   p += `📊 OBLIGATION BREAKUP\n`;
   p += `Personal Loan EMI: ₹[amount or Nil]\n`;
   p += `Home Loan EMI: ₹[amount or Nil]\n`;
   p += `Credit Card Outstanding: ₹[amount or Nil]\n`;
   p += `Other EMIs: ₹[amount or Nil]\n`;
   p += `Total Fixed Obligations: ₹[total]\n\n`;
-
   p += `📐 UNDERWRITING METRICS\n`;
   p += `FOIR Current: [%] [✅ if below 30% / ⚠️ if 30-50% / ❌ if above 50%]\n`;
   p += `FOIR Post Loan: [%] [✅ if below 50% / ⚠️ if 50-60% / ❌ if above 60%]\n`;
   p += `Max EMI Capacity: ₹[amount]/month (based on 50% FOIR)\n`;
   if (isSecured) p += `LTV Ratio: [% or N/A] [✅ if below 75% / ⚠️ if 75-80% / ❌ if above 80%]\n`;
   p += `\n`;
-
   if (isSecured) {
     p += `🏠 PROPERTY DETAILS\n`;
     p += `Type: [MCGM/Gram Panchayat/SRA/MHADA/CHS/Other]\n`;
@@ -361,14 +353,12 @@ function buildProfilePrompt(s) {
     p += `Deviation: [None/describe if any]\n`;
     p += `Property Risk: [LOW/MEDIUM/HIGH]\n\n`;
   }
-
   p += `🏦 LOAN REQUIREMENT\n`;
   p += `Type: [loan type]\n`;
   p += `Purpose: ${purpose}\n`;
   p += `Amount: ₹[amount]\n`;
   p += `Tenure Requested: [years]\n`;
   p += `Expected Interest Rate: [if mentioned, else: As per best available rate]\n\n`;
-
   p += `📊 PROFILE STRENGTH\n`;
   p += `Overall Score: [X]/100\n`;
   p += `Income Stability: [✅/⚠️/❌] [brief note]\n`;
@@ -379,14 +369,11 @@ function buildProfilePrompt(s) {
   p += `Repayment History: [✅/⚠️/❌] [brief note]\n`;
   if (isSecured) p += `Property: [✅/⚠️/❌] [brief note]\n`;
   p += `\n`;
-
   p += `⭐ ADDITIONAL STRENGTHS\n`;
   p += `[List strengths from analysis + any provided by RM]\n`;
   p += `[If none available write: None mentioned]\n\n`;
-
   p += `📋 DOCUMENTS VERIFIED\n`;
   p += `[List each document uploaded with ✅]\n\n`;
-
   p += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
   p += `Prepared by: VastMyWealth Advisory\n`;
   p += `Date: ${today}\n`;
@@ -409,7 +396,6 @@ function buildProfilePrompt(s) {
 async function runAnalysis(chatId, s) {
   try {
     const content = [];
-
     let downloaded = 0;
     for (let i = 0; i < s.ids.length; i++) {
       const file = await downloadFile(s.ids[i]);
@@ -422,34 +408,18 @@ async function runAnalysis(chatId, s) {
       }
       downloaded++;
     }
-
     content.push({type:"text", text: buildPrompt(s, downloaded)});
 
     const aiRes = await fetch(AI, {
       method : "POST",
-      headers: {
-        "Content-Type"     : "application/json",
-        "x-api-key"        : ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model     : "claude-haiku-4-5",
-        max_tokens: 2000,
-        messages  : [{role:"user", content}]
-      })
+      headers: {"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+      body: JSON.stringify({model:"claude-haiku-4-5", max_tokens:2000, messages:[{role:"user", content}]})
     });
 
     const result = await aiRes.json();
-    console.log("AI status:", aiRes.status);
 
     if (result.error && result.error.message && result.error.message.includes("100 PDF pages")) {
-      await tg(chatId,
-        "⚠️ One document has too many pages!\n\n" +
-        "Please split the bank statement:\n" +
-        "• Send only last 6 months\n" +
-        "• Or compress the PDF\n\n" +
-        "Type REMOVE to delete last doc\nThen upload shorter version!"
-      );
+      await tg(chatId, "⚠️ One document has too many pages!\n\nPlease split the bank statement:\n• Send only last 6 months\n• Or compress the PDF\n\nType REMOVE to delete last doc\nThen upload shorter version!");
       s.status = "uploading";
       saveSession(chatId, s);
       await showMainMenu(chatId);
@@ -460,40 +430,30 @@ async function runAnalysis(chatId, s) {
       const analysis = result.content[0].text;
       s.analysis     = analysis;
       s.status       = "analyzed";
-
       const probMatch = analysis.match(/PROBABILITY[:\s]+(\d+)%/i);
       if (probMatch) s.probability = probMatch[1] + "%";
-
       const nameMatch = analysis.match(/Name[:\s]+([A-Za-z\s]+)\n/i);
       if (nameMatch) s.clientName = nameMatch[1].trim();
-
       saveSession(chatId, s);
 
       if (analysis.length > 3800) {
-        const lines  = analysis.split("\n");
-        let chunk    = "";
+        const lines = analysis.split("\n");
+        let chunk = "";
         const chunks = [];
         for (const line of lines) {
-          if ((chunk + "\n" + line).length > 3800) {
-            chunks.push(chunk);
-            chunk = line;
-          } else {
-            chunk = chunk ? chunk + "\n" + line : line;
-          }
+          if ((chunk + "\n" + line).length > 3800) { chunks.push(chunk); chunk = line; }
+          else { chunk = chunk ? chunk + "\n" + line : line; }
         }
         if (chunk) chunks.push(chunk);
         for (const c of chunks) await tg(chatId, c);
       } else {
         await tg(chatId, analysis);
       }
-
       await showMainMenu(chatId);
-
     } else {
       await tg(chatId, "❌ AI analysis failed!\n" + JSON.stringify(result).substring(0,200));
       await showMainMenu(chatId);
     }
-
   } catch(err) {
     console.error("runAnalysis error:", err);
     await tg(chatId, "❌ Analysis error: " + err.message);
@@ -506,7 +466,6 @@ async function runAnalysis(chatId, s) {
 async function submitReport(chatId, s) {
   try {
     await tg(chatId, "⏳ Saving report...");
-
     const url = APPS_SCRIPT +
       "?action=saveAnalysis" +
       "&loan="     + encodeURIComponent(s.name        || "") +
@@ -515,23 +474,14 @@ async function submitReport(chatId, s) {
       "&docs="     + encodeURIComponent(s.docs.length || 0) +
       "&prob="     + encodeURIComponent(s.probability || "N/A") +
       "&analysis=" + encodeURIComponent(s.analysis    || "");
-
     const res  = await fetch(url);
     const data = await res.json();
-
     if (data.success) {
-      await tg(chatId,
-        "✅ REPORT SAVED!\n" +
-        "━━━━━━━━━━━━━━━━━━\n" +
-        "Sheet: Saved ✅\n" +
-        "Email: Sent ✅\n\n" +
-        "Type RESET to start new analysis."
-      );
+      await tg(chatId, "✅ REPORT SAVED!\n━━━━━━━━━━━━━━━━━━\nSheet: Saved ✅\nEmail: Sent ✅\n\nType RESET to start new analysis.");
     } else {
       await tg(chatId, "❌ Save failed: " + (data.error || "Unknown error"));
     }
     await showMainMenu(chatId);
-
   } catch(err) {
     console.error("submitReport error:", err);
     await tg(chatId, "❌ Submit error: " + err.message);
@@ -556,18 +506,11 @@ async function showMissing(chatId, s) {
   if (isLAP) { required.push("Income Proof", "Property Title Documents", "Co-Applicant Docs"); if (isBT) required.push("Loan Account Statement", "NOC"); }
 
   const names   = s.docs.map(d => d.toLowerCase());
-  const missing = required.filter(r =>
-    !names.some(n => n.includes(r.toLowerCase().split(" ")[0]))
-  );
+  const missing = required.filter(r => !names.some(n => n.includes(r.toLowerCase().split(" ")[0])));
 
   await tg(chatId,
-    "📋 DOCUMENTS CHECK\n" +
-    "━━━━━━━━━━━━━━━━━━\n" +
-    "Received: " + s.docs.length + "\n\n" +
-    (missing.length > 0 ?
-      "❌ Still needed:\n" + missing.map(m => "• " + m).join("\n") :
-      "✅ Minimum documents present!\nType ANALYZE to proceed."
-    )
+    "📋 DOCUMENTS CHECK\n━━━━━━━━━━━━━━━━━━\nReceived: " + s.docs.length + "\n\n" +
+    (missing.length > 0 ? "❌ Still needed:\n" + missing.map(m => "• " + m).join("\n") : "✅ Minimum documents present!\nType ANALYZE to proceed.")
   );
   await showMainMenu(chatId);
 }
@@ -580,20 +523,11 @@ const CLASSIFY_PENDING = {};
 
 async function classifyDocuments(chatId, s) {
   try {
-    if (s.docs.length === 0) {
-      await tg(chatId, "❌ No documents uploaded!\nUpload documents first then type CLASSIFY.");
-      return;
-    }
-    await tg(chatId,
-      "🔍 Starting classification...\n" +
-      "Total: " + s.docs.length + " documents\n\n" +
-      "I will show each document and ask you to confirm.\nPlease wait..."
-    );
+    if (s.docs.length === 0) { await tg(chatId, "❌ No documents uploaded!\nUpload documents first then type CLASSIFY."); return; }
+    await tg(chatId, "🔍 Starting classification...\nTotal: " + s.docs.length + " documents\n\nI will show each document and ask you to confirm.\nPlease wait...");
     CLASSIFY_PENDING[chatId] = {
-      ids            : s.ids.slice(),
-      names          : s.docs.slice(),
-      classifications: new Array(s.ids.length).fill(null),
-      currentIndex   : 0
+      ids: s.ids.slice(), names: s.docs.slice(),
+      classifications: new Array(s.ids.length).fill(null), currentIndex: 0
     };
     await classifyNext(chatId);
   } catch(err) {
@@ -607,138 +541,86 @@ async function classifyNext(chatId) {
   const p = CLASSIFY_PENDING[chatId];
   if (!p) return;
   const idx = p.currentIndex;
-  if (idx >= p.ids.length) {
-    await createClassifiedPDFs(chatId);
-    return;
-  }
+  if (idx >= p.ids.length) { await createClassifiedPDFs(chatId); return; }
   try {
     await tg(chatId, "🔍 Classifying " + (idx+1) + " of " + p.ids.length + "...");
     const file = await downloadFile(p.ids[idx]);
-    if (!file) {
-      p.classifications[idx] = "Other Document";
-      p.currentIndex++;
-      await classifyNext(chatId);
-      return;
-    }
+    if (!file) { p.classifications[idx] = "Other Document"; p.currentIndex++; await classifyNext(chatId); return; }
     const isPDF = file.mimeType === "application/pdf";
     let docType = "Other Document";
     if (!isPDF) {
       const b64 = file.buffer.toString("base64");
       const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method : "POST",
-        headers: {"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
-        body   : JSON.stringify({
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({
           model:"claude-haiku-4-5", max_tokens:50,
           messages:[{role:"user", content:[
             {type:"image", source:{type:"base64", media_type:file.mimeType, data:b64}},
-            {type:"text",  text:"Identify this document. Reply with ONLY one label:\nPAN Card\nAadhar Card\nBank Statement\nSalary Slip\nITR\nGST Certificate\nProperty Document\nForm 16\nOffer Letter\nLoan Statement\nOther Document\n\nOne label only."}
+            {type:"text", text:"Identify this document. Reply with ONLY one label:\nPAN Card\nAadhar Card\nBank Statement\nSalary Slip\nITR\nGST Certificate\nProperty Document\nForm 16\nOffer Letter\nLoan Statement\nOther Document\n\nOne label only."}
           ]}]
         })
       });
       const data = await res.json();
       if (data.content && data.content[0]) docType = data.content[0].text.trim();
-    } else {
-      docType = "PDF Document";
-    }
+    } else { docType = "PDF Document"; }
     p.classifications[idx] = docType;
-    // Send image back with classification
     if (!isPDF) {
       const FormData = require("form-data");
       const form = new FormData();
       form.append("chat_id", chatId);
-      form.append("caption",
-        "📄 Document " + (idx+1) + " of " + p.ids.length + "\n" +
-        "━━━━━━━━━━━━━━━━━━\n" +
-        "🤖 I think this is: " + docType + "\n\n" +
-        "Reply YES if correct\nOr tell me what it is (e.g. Salary Slip)"
-      );
+      form.append("caption", "📄 Document " + (idx+1) + " of " + p.ids.length + "\n━━━━━━━━━━━━━━━━━━\n🤖 I think this is: " + docType + "\n\nReply YES if correct\nOr tell me what it is (e.g. Salary Slip)");
       form.append("photo", file.buffer, {filename:"doc.jpg", contentType:file.mimeType});
       await fetch(TG + "/sendPhoto", {method:"POST", headers:form.getHeaders(), body:form});
     } else {
-      await tg(chatId,
-        "📄 Document " + (idx+1) + " of " + p.ids.length + " (PDF)\n" +
-        "━━━━━━━━━━━━━━━━━━\n" +
-        "🤖 I think this is: " + docType + "\n\n" +
-        "Reply YES if correct\nOr tell me what it is"
-      );
+      await tg(chatId, "📄 Document " + (idx+1) + " of " + p.ids.length + " (PDF)\n━━━━━━━━━━━━━━━━━━\n🤖 I think this is: " + docType + "\n\nReply YES if correct\nOr tell me what it is");
     }
-  } catch(err) {
-    p.classifications[idx] = "Other Document";
-    p.currentIndex++;
-    await classifyNext(chatId);
-  }
+  } catch(err) { p.classifications[idx] = "Other Document"; p.currentIndex++; await classifyNext(chatId); }
 }
 
 async function createClassifiedPDFs(chatId) {
   const p = CLASSIFY_PENDING[chatId];
   if (!p) return;
-  await tg(chatId,
-    "✅ All classified!\n\n📋 SUMMARY\n━━━━━━━━━━━━━━━━━━\n" +
-    p.classifications.map(function(c,i){ return (i+1) + ". " + c; }).join("\n") +
-    "\n\n⏳ Creating separate PDFs..."
-  );
-  // Group by type
+  await tg(chatId, "✅ All classified!\n\n📋 SUMMARY\n━━━━━━━━━━━━━━━━━━\n" + p.classifications.map((c,i) => (i+1) + ". " + c).join("\n") + "\n\n⏳ Creating separate PDFs...");
   const groups = {};
-  p.classifications.forEach(function(type, i) {
-    if (!groups[type]) groups[type] = [];
-    groups[type].push(p.ids[i]);
-  });
-  // Get ilovepdf token
+  p.classifications.forEach((type, i) => { if (!groups[type]) groups[type] = []; groups[type].push(p.ids[i]); });
   let token = null;
   try {
-    const ar = await fetch("https://api.ilovepdf.com/v1/auth", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})
-    });
+    const ar = await fetch("https://api.ilovepdf.com/v1/auth", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})});
     const ad = await ar.json();
-    console.log("ilovepdf auth response:", JSON.stringify(ad));
     token = ad.token;
-  } catch(e) {
-    await tg(chatId, "❌ ilovepdf auth failed: " + e.message);
-    delete CLASSIFY_PENDING[chatId];
-    await showMainMenu(chatId);
-    return;
-  }
-  if (!token) {
-    await tg(chatId, "❌ Could not authenticate with ilovepdf!\nCheck ILOVEPDF_PUBLIC env variable.");
-    delete CLASSIFY_PENDING[chatId];
-    await showMainMenu(chatId);
-    return;
-  }
-  console.log("ilovepdf token obtained: " + token.substring(0,20) + "...");
+  } catch(e) { await tg(chatId, "❌ ilovepdf auth failed: " + e.message); delete CLASSIFY_PENDING[chatId]; await showMainMenu(chatId); return; }
+  if (!token) { await tg(chatId, "❌ Could not authenticate with ilovepdf!"); delete CLASSIFY_PENDING[chatId]; await showMainMenu(chatId); return; }
   let successCount = 0;
   for (const docType in groups) {
     const fileIds = groups[docType];
     try {
       const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/imagepdf", {method:"GET", headers:{"Authorization":"Bearer " + token}});
       const taskData = await taskRes.json();
-      console.log("ilovepdf task for " + docType + ":", JSON.stringify(taskData));
       const server   = taskData.server;
       const taskId   = taskData.task;
-      if (!server || !taskId) { console.log("No server/task for " + docType); continue; }
+      if (!server || !taskId) continue;
       const serverFiles = [];
       for (let i = 0; i < fileIds.length; i++) {
         const file = await downloadFile(fileIds[i]);
-        if (!file) { console.log("Could not download file " + i); continue; }
+        if (!file) continue;
         const FD   = require("form-data");
         const form = new FD();
         const ext  = file.mimeType === "application/pdf" ? ".pdf" : ".jpg";
         form.append("file", file.buffer, {filename:"doc_"+(i+1)+ext, contentType:file.mimeType});
         const ur   = await fetch("https://"+server+"/v1/upload", {method:"POST", headers:{"Authorization":"Bearer "+token,...form.getHeaders()}, body:form});
         const ud   = await ur.json();
-        console.log("Upload response:", JSON.stringify(ud));
         if (ud.server_filename) serverFiles.push({server_filename:ud.server_filename, filename:"doc_"+(i+1)+ext, task:taskId});
       }
-      if (serverFiles.length === 0) { console.log("No files uploaded for " + docType); continue; }
-      const safeName   = docType.replace(/[^a-zA-Z0-9]/g, "_");
+      if (serverFiles.length === 0) continue;
+      const safeName = docType.replace(/[^a-zA-Z0-9]/g, "_");
       const pr = await fetch("https://"+server+"/v1/process", {
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
         body:JSON.stringify({task:taskId, tool:"imagepdf", files:serverFiles, output_filename:safeName})
       });
       const pd = await pr.json();
-      console.log("Process response:", JSON.stringify(pd));
-      if (!pd.download_filename) { console.log("No download_filename for " + docType); continue; }
+      if (!pd.download_filename) continue;
       const dr  = await fetch("https://"+server+"/v1/download/"+taskId, {headers:{"Authorization":"Bearer "+token}});
       const buf = await dr.buffer();
       const TF  = require("form-data");
@@ -748,90 +630,46 @@ async function createClassifiedPDFs(chatId) {
       tf.append("document", buf, {filename:safeName+".pdf", contentType:"application/pdf"});
       await fetch(TG+"/sendDocument", {method:"POST", headers:tf.getHeaders(), body:tf});
       successCount++;
-      await new Promise(function(r){setTimeout(r,500);});
-    } catch(err) {
-      console.error("PDF error for " + docType + ":", err.message);
-      await tg(chatId, "⚠️ Could not create PDF for: " + docType);
-    }
+      await new Promise(r => setTimeout(r, 500));
+    } catch(err) { console.error("PDF error for " + docType + ":", err.message); await tg(chatId, "⚠️ Could not create PDF for: " + docType); }
   }
-  await tg(chatId,
-    "🎉 DONE!\n━━━━━━━━━━━━━━━━━━\n" +
-    "✅ " + successCount + " PDF(s) created!\n\n" +
-    "Forward these PDFs to the lender directly from Telegram!"
-  );
+  await tg(chatId, "🎉 DONE!\n━━━━━━━━━━━━━━━━━━\n✅ " + successCount + " PDF(s) created!\n\nForward these PDFs to the lender directly from Telegram!");
   delete CLASSIFY_PENDING[chatId];
   await showMainMenu(chatId);
 }
 
 // ============================================================
-// ============================================================
 // GENERATE PROFILE ONE-PAGER
 // ============================================================
 async function generateProfile(chatId, s) {
   try {
-    if (!s.analysis) {
-      await tg(chatId, "❌ Please run ANALYZE first!\nI need the analysis to generate the profile.");
-      await showMainMenu(chatId);
-      return;
-    }
-
+    if (!s.analysis) { await tg(chatId, "❌ Please run ANALYZE first!\nI need the analysis to generate the profile."); await showMainMenu(chatId); return; }
     await tg(chatId, "⏳ Generating applicant profile...\nPlease wait 20-30 seconds!");
-
     const res = await fetch(AI, {
-      method : "POST",
-      headers: {
-        "Content-Type"     : "application/json",
-        "x-api-key"        : ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model     : "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        messages  : [{role:"user", content: buildProfilePrompt(s)}]
-      })
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514", max_tokens:2000, messages:[{role:"user", content:buildProfilePrompt(s)}]})
     });
-
     const result = await res.json();
     if (result.content && result.content[0]) {
       const profile = result.content[0].text;
-      s.lastProfile  = profile;
+      s.lastProfile = profile;
       saveSession(chatId, s);
-
-      // Send in chunks if too long
       if (profile.length > 3800) {
-        const lines  = profile.split("\n");
-        let chunk    = "";
+        const lines = profile.split("\n");
+        let chunk = "";
         const chunks = [];
         for (const line of lines) {
-          if ((chunk + "\n" + line).length > 3800) {
-            chunks.push(chunk);
-            chunk = line;
-          } else {
-            chunk = chunk ? chunk + "\n" + line : line;
-          }
+          if ((chunk + "\n" + line).length > 3800) { chunks.push(chunk); chunk = line; }
+          else { chunk = chunk ? chunk + "\n" + line : line; }
         }
         if (chunk) chunks.push(chunk);
         for (const c of chunks) await tg(chatId, c);
-      } else {
-        await tg(chatId, profile);
-      }
-
-      await tg(chatId,
-        "📋 Profile generated!\n\n" +
-        "To update:\n" +
-        "• Type any corrections e.g. 'Income is 95000 not 85000'\n" +
-        "• Or add strengths e.g. 'Additional strength: Government employee, pension after retirement'\n" +
-        "• Then type PROFILE again for fresh report ✅"
-      );
-    } else {
-      await tg(chatId, "❌ Profile generation failed!\n" + JSON.stringify(result).substring(0,200));
-    }
+      } else { await tg(chatId, profile); }
+      await tg(chatId, "📋 Profile generated!\n\nTo update:\n• Type any corrections e.g. 'Income is 95000 not 85000'\n• Or add strengths e.g. 'Additional strength: Government employee'\n• Then type PROFILE again for fresh report ✅");
+    } else { await tg(chatId, "❌ Profile generation failed!\n" + JSON.stringify(result).substring(0,200)); }
     await showMainMenu(chatId);
-  } catch(err) {
-    console.error("generateProfile error:", err);
-    await tg(chatId, "❌ Profile error: " + err.message);
-    await showMainMenu(chatId);
-  }
+  } catch(err) { console.error("generateProfile error:", err); await tg(chatId, "❌ Profile error: " + err.message); await showMainMenu(chatId); }
 }
 
 // ============================================================
@@ -841,32 +679,615 @@ async function showImprove(chatId, s) {
   await tg(chatId, "⏳ Generating improvement suggestions...");
   try {
     const res = await fetch(AI, {
-      method : "POST",
-      headers: {
-        "Content-Type"     : "application/json",
-        "x-api-key"        : ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model     : "claude-haiku-4-5",
-        max_tokens: 800,
-        messages  : [{role:"user", content:
-          "Based on this loan analysis:\n\n" + s.analysis +
-          "\n\nProvide 5 specific actions to improve approval probability.\n" +
-          "Format:\n💡 HOW TO IMPROVE\n1. [action] — +[X]%\n2. [action] — +[X]%\n..."
-        }]
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({
+        model:"claude-haiku-4-5", max_tokens:800,
+        messages:[{role:"user", content:"Based on this loan analysis:\n\n" + s.analysis + "\n\nProvide 5 specific actions to improve approval probability.\nFormat:\n💡 HOW TO IMPROVE\n1. [action] — +[X]%\n2. [action] — +[X]%\n..."}]
       })
     });
     const result = await res.json();
     if (result.content && result.content[0]) await tg(chatId, result.content[0].text);
-  } catch(e) {
-    await tg(chatId, "❌ Error: " + e.message);
-  }
+  } catch(e) { await tg(chatId, "❌ Error: " + e.message); }
   await showMainMenu(chatId);
 }
 
 // ============================================================
-// WEBHOOK HANDLER
+// UNLOCK PDF VIA ILOVEPDF
+// ============================================================
+async function unlockPDF(b64, password) {
+  try {
+    const authRes  = await fetch("https://api.ilovepdf.com/v1/auth", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})});
+    const authData = await authRes.json();
+    const token    = authData.token;
+    if (!token) { console.log("ilovepdf auth failed"); return null; }
+    const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/unlock", {method:"GET", headers:{"Authorization":"Bearer " + token}});
+    const taskData = await taskRes.json();
+    const server   = taskData.server;
+    const taskId   = taskData.task;
+    if (!server || !taskId) return null;
+    const rawB64   = b64.startsWith("PDF:") ? b64.replace("PDF:","") : b64;
+    const buffer   = Buffer.from(rawB64, "base64");
+    const FormData = require("form-data");
+    const form     = new FormData();
+    form.append("task", taskId);
+    form.append("file", buffer, {filename:"bank.pdf", contentType:"application/pdf"});
+    const uploadRes  = await fetch("https://" + server + "/v1/upload", {method:"POST", headers:{"Authorization":"Bearer " + token, ...form.getHeaders()}, body:form});
+    const uploadData = await uploadRes.json();
+    if (!uploadData.server_filename) return null;
+    const processRes = await fetch("https://" + server + "/v1/process", {
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer " + token},
+      body:JSON.stringify({task:taskId, tool:"unlock", files:[{server_filename:uploadData.server_filename, filename:"bank.pdf", task:taskId, password:password}]})
+    });
+    const processData = await processRes.json();
+    if (!processData.download_filename) return null;
+    const downloadRes = await fetch("https://" + server + "/v1/download/" + taskId, {headers:{"Authorization":"Bearer " + token}});
+    const pdfBuffer = await downloadRes.buffer();
+    console.log("✅ PDF unlocked successfully!");
+    return "PDF:" + pdfBuffer.toString("base64");
+  } catch(e) { console.error("unlockPDF error:", e.message); return null; }
+}
+
+// ============================================================
+// SEARCH LENDERS BY CITY (fuzzy match)
+// ============================================================
+async function getLendersByCity(city) {
+  try {
+    if (!APPS_SCRIPT || !city) return null;
+    const url = APPS_SCRIPT +
+      "?action=getLendersByCity&city=" + encodeURIComponent(city.trim());
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.success && data.lenders && data.lenders.length > 0) {
+      return data.lenders;
+    }
+    return null;
+  } catch(e) {
+    console.error("getLendersByCity error:", e.message);
+    return null;
+  }
+}
+
+// ============================================================
+// SEND EMAIL VIA APPS SCRIPT
+// ============================================================
+async function sendCaseEmail(caseData) {
+  try {
+    if (!APPS_SCRIPT) return false;
+    const url = APPS_SCRIPT + "?action=sendCaseEmail";
+    const res = await fetch(url, {
+      method : "POST",
+      headers: {"Content-Type": "application/json"},
+      body   : JSON.stringify(caseData)
+    });
+    const data = await res.json();
+    return data.success === true;
+  } catch(e) {
+    console.error("sendCaseEmail error:", e.message);
+    return false;
+  }
+}
+
+// ============================================================
+// ============================================================
+// CASE SUMMARY — NEW ENDPOINT
+// Receives case data from Rahul WhatsApp bot
+// Generates professional case note + sends email + Telegram
+// ============================================================
+app.post("/case-summary", async (req, res) => {
+  res.json({ success: true, message: "Case summary generation started" });
+
+  try {
+    const data = req.body;
+    const name           = data.name           || "Unknown";
+    const mobile         = data.mobile         || "";
+    const loanType       = data.loanType       || "Unknown";
+    const loanAmount     = data.loanAmount     || "Not mentioned";
+    const city           = data.city           || "Not mentioned";
+    const age            = data.age            || "Not mentioned";
+    const employmentType = data.employmentType || "Not mentioned";
+    const monthlyIncome  = data.monthlyIncome  || "Not mentioned";
+    const cibilScore     = data.cibilScore     || "Not mentioned";
+    const existingEMI    = data.existingEMI    || "None";
+    const bounces        = data.bounces        || "None";
+    const companyName    = data.companyName    || "Not mentioned";
+    const workExperience = data.workExperience || "Not mentioned";
+    const businessVintage= data.businessVintage|| "Not mentioned";
+    const propertyDetails= data.propertyDetails|| "Not mentioned";
+    const coApplicant    = data.coApplicant    || "None";
+    const partnerCode    = data.partnerCode    || "";
+    const isPartnerCase  = data.isPartnerCase  || false;
+    const documents      = data.documents      || {};
+    const conversationSummary = data.conversationSummary || "";
+    const chatId         = process.env.CHAT_ID || "1471849538";
+
+    console.log(`Case summary started: ${name} | ${loanType} | ${mobile}`);
+
+    // Notify processing started
+    await tg(chatId, `⏳ Generating case summary for ${name}...\nLoan: ${loanType}\nPlease wait!`);
+
+    // ── STEP 1: ANALYZE DOCUMENTS IF ANY ────────────────────
+    let documentAnalysis = "";
+    const docsReceived   = [];
+    const docContent     = [];
+
+    const docKeys  = ["pan", "aadhar", "salary", "bank", "itr", "udyam", "other"];
+    const docNames = ["PAN Card", "Aadhar Card", "Salary Slip", "Bank Statement", "ITR", "Udyam", "Other Document"];
+
+    for (let i = 0; i < docKeys.length; i++) {
+      const b64 = documents[docKeys[i]];
+      if (!b64 || b64.length < 10) continue;
+      try {
+        const isPDF  = b64.startsWith("PDF:");
+        const rawB64 = isPDF ? b64.replace("PDF:", "") : b64;
+        let mimeType = "image/jpeg";
+        if (isPDF) mimeType = "application/pdf";
+        else if (rawB64.startsWith("iVBOR")) mimeType = "image/png";
+
+        if (isPDF) {
+          docContent.push({type:"document", source:{type:"base64", media_type:"application/pdf", data:rawB64}});
+        } else {
+          docContent.push({type:"image", source:{type:"base64", media_type:mimeType, data:rawB64}});
+        }
+        docsReceived.push(docNames[i]);
+        console.log(`Loaded for case: ${docNames[i]}`);
+      } catch(e) {
+        console.error(`Doc error ${docNames[i]}: ${e.message}`);
+      }
+    }
+
+    // Analyze documents if any received
+    if (docContent.length > 0) {
+      const docPrompt = `You are verifying documents for a loan application at VastMyWealth Advisory.
+
+Customer: ${name} | Loan: ${loanType} | Employment: ${employmentType}
+
+Please verify these ${docContent.length} documents and extract:
+1. Name on PAN Card
+2. Name on Aadhar Card  
+3. Bank statement period (from month-year to month-year) and number of months
+4. Bank account holder name
+5. Average monthly balance or salary credits
+6. Number of bounces/returns
+7. Existing EMI debits
+8. Salary slip details (company, amount, month)
+9. ITR assessment year and income
+10. Udyam business name and registration date
+11. Any name mismatches across documents
+12. Any concerns or red flags
+
+Respond in simple clear points. No technical jargon.`;
+
+      docContent.push({type:"text", text:docPrompt});
+
+      try {
+        const docRes = await fetch(AI, {
+          method:"POST",
+          headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+          body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1000, messages:[{role:"user", content:docContent}]})
+        });
+        const docResult = await docRes.json();
+        if (docResult.content && docResult.content[0]) {
+          documentAnalysis = docResult.content[0].text;
+          console.log("Document analysis complete");
+        }
+      } catch(e) {
+        console.error("Document analysis error:", e.message);
+      }
+    }
+
+    // ── STEP 2: GENERATE CASE SUMMARY ───────────────────────
+    const lt        = loanType.toUpperCase();
+    const isHL      = lt.includes("HOME");
+    const isLAP     = lt.includes("PROPERTY") || lt.includes("AGAINST") || lt.includes("LAP");
+    const isBL      = lt.includes("BUSINESS");
+    const isPL      = lt.includes("PERSONAL");
+    const isCF      = lt.includes("CONSTRUCTION");
+    const isBT      = lt.includes("BALANCE") || lt.includes("TRANSFER");
+    const isSecured = isHL || isLAP;
+    const today     = new Date().toLocaleDateString("en-IN", {day:"2-digit", month:"short", year:"numeric"});
+
+    const casePrompt = `You are a senior loan advisor at VastMyWealth Advisory preparing a professional case note for a banker/lender.
+
+Write a clear, professional case note that a banker can read and immediately understand.
+Use simple language — no technical jargon.
+Write in the style of the sample case note below.
+
+CUSTOMER DETAILS FROM CONVERSATION:
+Name: ${name}
+Mobile: ${mobile}
+Age: ${age}
+Loan Type: ${loanType}
+Loan Amount: ${loanAmount}
+City: ${city}
+Employment: ${employmentType}
+Company/Business: ${companyName}
+Work Experience/Vintage: ${employmentType.toLowerCase().includes("self") ? businessVintage : workExperience}
+Monthly Income: ${monthlyIncome}
+CIBIL Score: ${cibilScore}
+Existing EMIs: ${existingEMI}
+Bounces: ${bounces}
+Co-Applicant: ${coApplicant}
+Property Details: ${propertyDetails}
+${isPartnerCase ? "Partner Code: " + partnerCode : ""}
+
+DOCUMENT VERIFICATION RESULTS:
+${documentAnalysis || "Documents pending — to be collected"}
+
+DOCUMENTS RECEIVED:
+${docsReceived.length > 0 ? docsReceived.map(d => "✅ " + d).join("\n") : "Documents pending"}
+
+CONVERSATION CONTEXT:
+${conversationSummary}
+
+FORMAT THE CASE NOTE EXACTLY LIKE THIS SAMPLE:
+
+CASE: ${loanType.toUpperCase()} — ${loanAmount}
+${isBT ? "(BALANCE TRANSFER + TOP UP)" : ""}
+
+APPLICANT PROFILE:
+• ${name}, Age ${age}
+• ${employmentType} — ${companyName}
+• [Brief note about employment stability]
+
+${coApplicant && coApplicant !== "None" ? `CO-APPLICANT:
+• ${coApplicant}
+• [Income and relationship details]
+
+` : ""}LOCATION:
+• ${city}
+
+INCOME DETAILS:
+• Monthly Income: ${monthlyIncome}
+• [Additional income details if any]
+
+BANKING & CREDIT:
+• CIBIL: ${cibilScore}
+• Bounces: ${bounces}
+• Existing EMIs: ${existingEMI}
+• [Banking behavior notes from documents]
+
+${isSecured ? `PROPERTY DETAILS:
+• ${propertyDetails}
+• [Property type and risk assessment]
+
+` : ""}LOAN REQUIREMENT:
+• Type: ${loanType}
+• Amount: ${loanAmount}
+• ${isBT ? "Purpose: Balance Transfer — consolidation and better rate" : "Purpose: [from conversation]"}
+
+DOCUMENTS AVAILABLE:
+${docsReceived.length > 0 ? docsReceived.map(d => "• " + d + " ✅").join("\n") : "• To be collected"}
+${docsReceived.length < (isPL ? 4 : 3) ? "\nDOCUMENTS PENDING:\n• [List pending documents]" : ""}
+
+STRENGTHS:
+• [List 3-5 genuine strengths based on profile]
+
+${documentAnalysis && documentAnalysis.includes("concern") ? `CONCERNS:
+• [List any concerns noted]
+
+` : ""}NOTE:
+[2-3 line summary of the case for banker — why this case should be considered]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Prepared by: VastMyWealth Advisory | Rahul
+Date: ${today}
+Contact: venkateshmanojp@gmail.com
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULES:
+1. Write like a human banker — simple clear language
+2. Extract actual figures from documents if available
+3. If data not available write "To be confirmed"
+4. Highlight genuine strengths
+5. Note any concerns honestly
+6. Keep total length reasonable — banker should read in 2 minutes`;
+
+    const caseRes = await fetch(AI, {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:2000, messages:[{role:"user", content:casePrompt}]})
+    });
+
+    const caseResult = await caseRes.json();
+    if (!caseResult.content || !caseResult.content[0]) {
+      await tg(chatId, `❌ Case summary generation failed for ${name}!\nPlease review manually.`);
+      return;
+    }
+
+    const caseSummary = caseResult.content[0].text;
+    console.log("Case summary generated for: " + name);
+
+    // ── STEP 3: GET LENDERS FOR CITY ────────────────────────
+    let lenderText = "";
+    if (city && city !== "Not mentioned") {
+      const lenders = await getLendersByCity(city);
+      if (lenders && lenders.length > 0) {
+        lenderText = `\n\n🏦 AVAILABLE LENDERS IN ${city.toUpperCase()}:\n`;
+        lenders.forEach(l => {
+          lenderText += `\n${l.bank}\n`;
+          if (l.smName)   lenderText += `SM: ${l.smName} — 📞 ${l.smMobile}\n`;
+          if (l.product)  lenderText += `Products: ${l.product}\n`;
+        });
+      }
+    }
+
+    // ── STEP 4: SAVE TO MASTER SHEET ────────────────────────
+    if (APPS_SCRIPT && mobile) {
+      try {
+        const cleanMobile = mobile.replace(/\D/g,"").slice(-10);
+        const saveUrl = APPS_SCRIPT +
+          "?action=saveProfile" +
+          "&mobile="  + encodeURIComponent(cleanMobile) +
+          "&profile=" + encodeURIComponent(caseSummary.substring(0, 1500));
+        await fetch(saveUrl);
+        console.log("Case saved to Master Sheet");
+      } catch(e) {
+        console.error("Save to sheet error:", e.message);
+      }
+    }
+
+    // ── STEP 5: SEND EMAIL ───────────────────────────────────
+    const emailData = {
+      to          : "venkateshmanojp@gmail.com",
+      subject     : `New Case — ${name} | ${loanType} | ${loanAmount}${isPartnerCase ? " | Partner: " + partnerCode : ""}`,
+      body        : caseSummary,
+      mobile      : mobile,
+      name        : name,
+      loanType    : loanType,
+      isPartner   : isPartnerCase,
+      partnerCode : partnerCode
+    };
+
+    const emailSent = await sendCaseEmail(emailData);
+    console.log("Email sent: " + emailSent);
+
+    // ── STEP 6: SEND TELEGRAM BRIEF ─────────────────────────
+    const refId = "VMW-" + mobile.replace(/\D/g,"").slice(-4);
+
+    // Brief summary for Telegram
+    const telegramBrief = `✅ NEW CASE READY
+━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 ${refId} | ${isPartnerCase ? "Partner Case" : "Direct Case"}
+
+👤 ${name} | Age: ${age}
+💼 ${loanType} | ${loanAmount}
+🏙️ ${city}
+💰 Income: ${monthlyIncome}
+📊 CIBIL: ${cibilScore}
+💳 EMIs: ${existingEMI}
+🔄 Bounces: ${bounces}
+📱 Call: ${mobile}
+
+📋 Docs: ${docsReceived.length > 0 ? docsReceived.join(", ") : "Pending"}
+📧 Case email sent${emailSent ? " ✅" : " ❌"}
+${lenderText}
+👉 Review and call customer immediately!`;
+
+    // Send Telegram in chunks if needed
+    if (telegramBrief.length > 3800) {
+      const chunks = [];
+      let remaining = telegramBrief;
+      while (remaining.length > 0) {
+        chunks.push(remaining.substring(0, 3800));
+        remaining = remaining.substring(3800);
+      }
+      for (const chunk of chunks) {
+        await tg(chatId, chunk);
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } else {
+      await tg(chatId, telegramBrief);
+    }
+
+    console.log(`✅ Case summary complete: ${name}`);
+
+  } catch(err) {
+    console.error("case-summary error:", err.message);
+    try {
+      const chatId = process.env.CHAT_ID || "1471849538";
+      await tg(chatId, `❌ Case summary error for ${req.body.name || "Unknown"}!\nError: ${err.message}\nPlease review manually.`);
+    } catch(e) {}
+  }
+});
+
+// ============================================================
+// ANALYZE PORTAL — Banking Portal submissions
+// ============================================================
+app.post("/analyze-portal", async (req, res) => {
+  res.json({success: true, message: "Analysis started"});
+
+  try {
+    const data     = req.body;
+    const name     = data.name     || "Unknown";
+    const mobile   = data.mobile   || "";
+    const loanType = data.loanType || "Personal Loan";
+    const empType  = data.empType  || "Salaried";
+    const cibil    = data.cibil    || "Not Checked";
+    const income   = data.income   || "";
+    const isAdmin  = data.isAdmin  || false;
+    const chatId   = process.env.CHAT_ID || "1471849538";
+
+    console.log(`Portal analysis started: ${name} | ${loanType} | ${mobile}`);
+    console.log(`Bank password: "${data.bankPassword || "NOT RECEIVED"}"`);
+
+    await tg(chatId, `⏳ AI analyzing documents for ${name}...\nLoan: ${loanType}\nPlease wait 30-60 seconds!`);
+
+    const content      = [];
+    const docKeys      = ["file_pan","file_aadhar","file_salary1","file_bankSal","file_itr1","file_extra1","file_extra2","file_extra3"];
+    const docNames     = ["PAN Card","Aadhar Card","Salary Slip","Bank Statement","ITR","Document 1","Document 2","Document 3"];
+    let   docCount     = 0;
+    const docsReceived = [];
+
+    for (let i = 0; i < docKeys.length; i++) {
+      const b64 = data[docKeys[i]];
+      if (!b64 || b64.length < 10) continue;
+      try {
+        const isPDF  = b64.startsWith("PDF:");
+        const rawB64 = isPDF ? b64.replace("PDF:", "") : b64;
+        let mimeType = "image/jpeg";
+        if (isPDF) mimeType = "application/pdf";
+        else if (rawB64.startsWith("iVBOR")) mimeType = "image/png";
+        else if (rawB64.startsWith("/9j/")) mimeType = "image/jpeg";
+
+        if (isPDF) {
+          content.push({type:"document", source:{type:"base64", media_type:"application/pdf", data:rawB64}});
+        } else {
+          content.push({type:"image", source:{type:"base64", media_type:mimeType, data:rawB64}});
+        }
+        docCount++;
+        docsReceived.push(docNames[i]);
+        console.log(`Loaded: ${docNames[i]} | mime: ${mimeType} | size: ${rawB64.length}`);
+      } catch(e) { console.error(`Doc error ${docNames[i]}: ${e.message}`); }
+    }
+
+    console.log(`Total docs loaded: ${docCount} | ${docsReceived.join(", ")}`);
+
+    if (docCount === 0) {
+      await tg(chatId, `⚠️ No readable documents found for ${name}!\nPlease check uploads and retry.`);
+      return;
+    }
+
+    const lt        = loanType.toUpperCase();
+    const isHL      = lt.includes("HOME");
+    const isLAP     = lt.includes("PROPERTY") || lt.includes("AGAINST");
+    const isSecured = isHL || isLAP;
+
+    let prompt = `You are an expert Indian loan underwriter for VastMyWealth Advisory.\n\n`;
+    prompt += `Analyze ${docCount} documents for: ${name}\n`;
+    prompt += `Loan Type: ${loanType}\n`;
+    prompt += `Employment: ${empType}\n`;
+    prompt += `CIBIL Declared: ${cibil}\n`;
+    if (income) prompt += `Declared Income: ${income}\n`;
+    prompt += `\nEXTRACT AND ANALYZE:\n`;
+    prompt += `1. Name from PAN card\n`;
+    prompt += `2. Customer type — Salaried or Self Employed\n`;
+    prompt += `3. Loan amount if mentioned\n`;
+    prompt += `4. Salary credit amount (if salaried) OR average bank balance (if self employed)\n`;
+    prompt += `5. Existing EMIs from bank statement\n`;
+    prompt += `6. List of documents uploaded\n`;
+    prompt += `7. Any red flags\n`;
+    if (isSecured) prompt += `8. Property type (MCGM/GP/SRA/MHADA/CHS) if docs available\n`;
+    prompt += `\nFORMAT AS TWO SECTIONS:\n\n`;
+    prompt += `SECTION 1 — TELEGRAM BRIEF:\n`;
+    prompt += `👤 [Name] | [Salaried/Self Employed]\n`;
+    prompt += `🏠 Loan: ${loanType} | Amount: ₹[amount or N/A]\n`;
+    prompt += `📊 CIBIL: ${cibil}\n`;
+    prompt += `💰 ${empType === "Salaried" ? "Salary Credit" : "Avg Bank Balance"}: ₹[amount]\n`;
+    prompt += `💳 Existing EMIs: ₹[amount or None]\n`;
+    if (isSecured) prompt += `🏠 Property: [type] | Risk: [LOW/MED/HIGH]\n`;
+    prompt += `⚠️ Red Flags: [None or list]\n`;
+    prompt += `📋 Docs: ${docsReceived.join(", ")}\n\n`;
+    prompt += `---DSA_PROFILE_START---\n\n`;
+    prompt += `SECTION 2 — DSA EMAIL BODY:\n`;
+    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    prompt += `🏦 VASTMYWEALTH ADVISORY\n   LOAN APPLICATION\n`;
+    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    prompt += `👤 APPLICANT\nName: [from PAN]\nCustomer Type: ${empType}\n\n`;
+    prompt += `🏦 LOAN REQUIREMENT\nType: ${loanType}\nAmount: ₹[if mentioned, else N/A]\n\n`;
+    prompt += `💰 FINANCIAL SUMMARY\nCredit Score (Self Declared): ${cibil}\n`;
+    prompt += `${empType === "Salaried" ? "Monthly Salary Credit" : "Average Bank Balance"}: ₹[amount]\n`;
+    prompt += `Existing EMIs: ₹[amount or None]\n\n`;
+    prompt += `📋 DOCUMENTS AVAILABLE\n`;
+    docsReceived.forEach(d => { prompt += `✅ ${d}\n`; });
+    prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━\nVastMyWealth Advisory | Manoj: 9594592020\n━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    prompt += `---DSA_PROFILE_END---\n\nIMPORTANT: Extract figures from documents only. Write N/A if not available.`;
+
+    content.push({type:"text", text:prompt});
+
+    console.log(`Calling Claude with ${content.length} content items...`);
+    const aiRes = await fetch(AI, {
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+      body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1500, messages:[{role:"user", content}]})
+    });
+
+    let result = await aiRes.json();
+    console.log("Claude API status:", aiRes.status);
+    console.log("Claude response:", JSON.stringify(result).substring(0,300));
+
+    // Handle password protected PDF
+    if (result.error && result.error.message && result.error.message.includes("password protected")) {
+      const password = data.bankPassword || "";
+      if (!password) {
+        await tg(chatId, `⚠️ Bank statement is password protected!\nPlease enter password in portal and retry.`);
+        return;
+      }
+      console.log("Attempting ilovepdf unlock...");
+      const unlocked = await unlockPDF(data.file_bankSal, password);
+      if (!unlocked) {
+        await tg(chatId, `⚠️ Could not unlock!\nPlease check password and retry.`);
+        return;
+      }
+      console.log("PDF unlocked! Retrying Claude...");
+      for (let i = 0; i < content.length; i++) {
+        if (content[i].type === "document") {
+          content[i] = {type:"document", source:{type:"base64", media_type:"application/pdf", data:unlocked.replace("PDF:","")}};
+          break;
+        }
+      }
+      const retryRes = await fetch(AI, {
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
+        body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1500, messages:[{role:"user", content}]})
+      });
+      result = await retryRes.json();
+      console.log("Retry status:", retryRes.status);
+    }
+
+    if (result.error && result.error.message && result.error.message.includes("100 PDF pages")) {
+      await tg(chatId, `⚠️ Bank statement has too many pages!\nPlease upload last 6 months only (max 100 pages).\nUse ilovepdf.com to split the PDF.`);
+      return;
+    }
+
+    if (!result.content || !result.content[0]) {
+      await tg(chatId, `❌ AI analysis failed for ${name}!\nError: ${JSON.stringify(result).substring(0,200)}\nPlease retry or review manually.`);
+      return;
+    }
+
+    const fullText   = result.content[0].text;
+    const parts      = fullText.split("---DSA_PROFILE_START---");
+    const briefText  = parts[0].trim();
+    const dsaProfile = parts.length > 1 ? parts[1].replace("---DSA_PROFILE_END---","").trim() : "";
+    const telegramMsg = briefText.length > 20 ? briefText : fullText.substring(0, 3000);
+
+    // Save profile to Master Sheet
+    if (APPS_SCRIPT && mobile) {
+      try {
+        const cleanMobile = mobile.replace(/\D/g,"").slice(-10);
+        const profileText = (dsaProfile || fullText).substring(0, 1500);
+        const saveUrl = APPS_SCRIPT + "?action=saveProfile&mobile=" + encodeURIComponent(cleanMobile) + "&profile=" + encodeURIComponent(profileText);
+        const saveRes    = await fetch(saveUrl);
+        const saveResult = await saveRes.json();
+        console.log("saveProfile response:", JSON.stringify(saveResult));
+      } catch(e) { console.error("Save profile error:", e.message); }
+    }
+
+    const refId = "VMW-" + mobile.slice(-4);
+    const msgToSend = `✅ AI ANALYSIS COMPLETE\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📋 ${refId} | ${isAdmin ? "Admin Upload" : "Customer Upload"}\n\n${telegramMsg}\n\n👉 Review in CRM before allocating DSA`;
+
+    if (msgToSend.length > 3800) {
+      const chunks = [];
+      let remaining = msgToSend;
+      while (remaining.length > 0) { chunks.push(remaining.substring(0, 3800)); remaining = remaining.substring(3800); }
+      for (const chunk of chunks) { await tg(chatId, chunk); await new Promise(r => setTimeout(r, 500)); }
+    } else {
+      await tg(chatId, msgToSend);
+    }
+
+    console.log(`✅ Portal analysis complete: ${name}`);
+
+  } catch(err) {
+    console.error("analyze-portal error:", err.message);
+    try {
+      await tg(process.env.CHAT_ID || "1471849538", `❌ Analysis error for portal submission!\nError: ${err.message}\nPlease review manually in CRM.`);
+    } catch(e) {}
+  }
+});
+
+// ============================================================
+// TELEGRAM BOT WEBHOOK
 // ============================================================
 app.post("/webhook", async (req, res) => {
   res.sendStatus(200);
@@ -874,7 +1295,6 @@ app.post("/webhook", async (req, res) => {
   try {
     const body = req.body;
 
-    // ── CALLBACK QUERY ──────────────────────────────────
     if (body.callback_query) {
       const cb     = body.callback_query;
       const chatId = cb.message.chat.id;
@@ -888,28 +1308,15 @@ app.post("/webhook", async (req, res) => {
         const code = data.replace("loan_", "");
         const name = LOANS[code];
         if (!name) { await tg(chatId, "❌ Invalid loan type!"); return; }
-
         saveSession(chatId, {code, name, docs:[], ids:[], cibil:"", status:"uploading"});
-
-        await tg(chatId,
-          `✅ ${name} selected!\n\n` +
-          `📁 Forward all documents now:\n` +
-          `• PAN Card\n• Aadhar Card\n• Bank Statement(s)\n` +
-          `• Salary Slips / ITR\n• GST (if applicable)\n` +
-          `• Loan statement (if BT)\n\n` +
-          `Type ANALYZE when all uploaded!`
-        );
+        await tg(chatId, `✅ ${name} selected!\n\n📁 Forward all documents now:\n• PAN Card\n• Aadhar Card\n• Bank Statement(s)\n• Salary Slips / ITR\n• GST (if applicable)\n• Loan statement (if BT)\n\nType ANALYZE when all uploaded!`);
         await showMainMenu(chatId);
         return;
       }
 
       if (data.startsWith("cibil_")) {
         const s = getSession(chatId);
-        if (!s) {
-          await tg(chatId, "❌ Session expired! Type HELP to restart.");
-          await showMainMenu(chatId);
-          return;
-        }
+        if (!s) { await tg(chatId, "❌ Session expired! Type HELP to restart."); await showMainMenu(chatId); return; }
         s.cibil  = CIBIL_MAP[data.replace("cibil_", "")] || "Not Checked";
         s.status = "analyzing";
         saveSession(chatId, s);
@@ -917,76 +1324,51 @@ app.post("/webhook", async (req, res) => {
         await runAnalysis(chatId, s);
         return;
       }
-
       return;
     }
 
-    // ── MESSAGE ─────────────────────────────────────────
     const msg = body.message;
     if (!msg) return;
-
     const chatId = msg.chat.id;
 
-    // Document or photo
     if (msg.document || msg.photo) {
       const s = getSession(chatId);
-      if (!s) {
-        await tg(chatId, "❌ No active session!\nType HELP to start first.");
-        return;
-      }
+      if (!s) { await tg(chatId, "❌ No active session!\nType HELP to start first."); return; }
       if (s.status === "analyzing" || s.status === "analyzed") return;
 
       let fileId   = "";
       let fileName = `Doc_${s.docs.length + 1}`;
 
-      if (msg.document) {
-        fileId   = msg.document.file_id;
-        fileName = msg.document.file_name || fileName;
-      } else if (msg.photo) {
-        fileId   = msg.photo[msg.photo.length - 1].file_id;
-        fileName = `Photo_${s.docs.length + 1}.jpg`;
-      }
+      if (msg.document) { fileId = msg.document.file_id; fileName = msg.document.file_name || fileName; }
+      else if (msg.photo) { fileId = msg.photo[msg.photo.length - 1].file_id; fileName = `Photo_${s.docs.length + 1}.jpg`; }
 
       s.docs.push(fileName);
       s.ids.push(fileId);
       saveSession(chatId, s);
 
       const count = s.docs.length;
-      if (count === 1) {
-        await tg(chatId, "📁 First document received!\nKeep sending more.\nType ANALYZE when all uploaded.");
-      } else if (count === 5) {
-        await tg(chatId, `📁 ${count} documents received.\nSend more or type ANALYZE.`);
-      } else if (count % 10 === 0) {
-        await tg(chatId, `📁 ${count} documents received.\nType ANALYZE when done.`);
-      }
+      if (count === 1) { await tg(chatId, "📁 First document received!\nKeep sending more.\nType ANALYZE when all uploaded."); }
+      else if (count === 5) { await tg(chatId, `📁 ${count} documents received.\nSend more or type ANALYZE.`); }
+      else if (count % 10 === 0) { await tg(chatId, `📁 ${count} documents received.\nType ANALYZE when done.`); }
       return;
     }
 
-    // Text commands
     const text = (msg.text || "").trim();
     if (!text) return;
 
     const cmd = text.toUpperCase()
-      .replace("📊 ", "").replace("📋 ", "")
-      .replace("💡 ", "").replace("📤 ", "")
-      .replace("🔍 ", "").replace("📄 ", "")
-      .replace("🔄 ", "").replace("🏠 NEW LOAN", "HELP")
+      .replace("📊 ", "").replace("📋 ", "").replace("💡 ", "").replace("📤 ", "")
+      .replace("🔍 ", "").replace("📄 ", "").replace("🔄 ", "").replace("🏠 NEW LOAN", "HELP")
       .replace(/^\//, "").split("@")[0].trim();
 
     console.log(`📩 Chat ${chatId}: "${cmd}"`);
 
-    if (cmd === "HELP" || cmd === "START") {
-      await showLoanMenu(chatId);
-      return;
-    }
+    if (cmd === "HELP" || cmd === "START") { await showLoanMenu(chatId); return; }
 
     if (cmd.startsWith("NEW ")) {
       const code = cmd.replace("NEW ", "").trim();
       const name = LOANS[code];
-      if (!name) {
-        await tg(chatId, "❌ Invalid!\nUse: NEW PL / NEW HL / NEW BL / NEW LAP\nor type HELP for buttons!");
-        return;
-      }
+      if (!name) { await tg(chatId, "❌ Invalid!\nUse: NEW PL / NEW HL / NEW BL / NEW LAP\nor type HELP for buttons!"); return; }
       saveSession(chatId, {code, name, docs:[], ids:[], cibil:"", status:"uploading"});
       await tg(chatId, `✅ ${name} started!\n\nUpload all documents now.\nType ANALYZE when done!`);
       await showMainMenu(chatId);
@@ -995,7 +1377,7 @@ app.post("/webhook", async (req, res) => {
 
     if (cmd === "ANALYZE") {
       const s = getSession(chatId);
-      if (!s)                  { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
+      if (!s) { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
       if (s.docs.length === 0) { await tg(chatId, "❌ No documents uploaded yet!"); return; }
       s.status = "waiting_cibil";
       saveSession(chatId, s);
@@ -1006,53 +1388,16 @@ app.post("/webhook", async (req, res) => {
     if (cmd === "STATUS") {
       const s = getSession(chatId);
       if (!s) { await tg(chatId, "❌ No active session!"); return; }
-      await tg(chatId,
-        `📊 CURRENT SESSION\n` +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `Loan : ${s.name}\n` +
-        `Docs : ${s.docs.length} uploaded\n\n` +
-        s.docs.map((d,i) => `${i+1}. ${d}`).join("\n") +
-        `\n\nType ANALYZE when ready!`
-      );
+      await tg(chatId, `📊 CURRENT SESSION\n━━━━━━━━━━━━━━━━━━\nLoan : ${s.name}\nDocs : ${s.docs.length} uploaded\n\n` + s.docs.map((d,i) => `${i+1}. ${d}`).join("\n") + `\n\nType ANALYZE when ready!`);
       await showMainMenu(chatId);
       return;
     }
 
-    if (cmd === "MISSING") {
-      const s = getSession(chatId);
-      if (!s) { await tg(chatId, "❌ No active session!"); return; }
-      await showMissing(chatId, s);
-      return;
-    }
-
-    if (cmd === "IMPROVE") {
-      const s = getSession(chatId);
-      if (!s || !s.analysis) { await tg(chatId, "❌ Run ANALYZE first!"); return; }
-      await showImprove(chatId, s);
-      return;
-    }
-
-    if (cmd === "PROFILE") {
-      const s = getSession(chatId);
-      if (!s) { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
-      await generateProfile(chatId, s);
-      return;
-    }
-
-    if (cmd === "CLASSIFY") {
-      const s = getSession(chatId);
-      if (!s)                  { await tg(chatId, "❌ No active session!\nType HELP to start."); return; }
-      if (s.docs.length === 0) { await tg(chatId, "❌ No documents uploaded!\nUpload documents first."); return; }
-      await classifyDocuments(chatId, s);
-      return;
-    }
-
-    if (cmd === "SUBMIT") {
-      const s = getSession(chatId);
-      if (!s || !s.analysis) { await tg(chatId, "❌ Run ANALYZE first!"); return; }
-      await submitReport(chatId, s);
-      return;
-    }
+    if (cmd === "MISSING") { const s = getSession(chatId); if (!s) { await tg(chatId, "❌ No active session!"); return; } await showMissing(chatId, s); return; }
+    if (cmd === "IMPROVE") { const s = getSession(chatId); if (!s || !s.analysis) { await tg(chatId, "❌ Run ANALYZE first!"); return; } await showImprove(chatId, s); return; }
+    if (cmd === "PROFILE") { const s = getSession(chatId); if (!s) { await tg(chatId, "❌ No active session!\nType HELP to start."); return; } await generateProfile(chatId, s); return; }
+    if (cmd === "CLASSIFY") { const s = getSession(chatId); if (!s) { await tg(chatId, "❌ No active session!\nType HELP to start."); return; } if (s.docs.length === 0) { await tg(chatId, "❌ No documents uploaded!\nUpload documents first."); return; } await classifyDocuments(chatId, s); return; }
+    if (cmd === "SUBMIT") { const s = getSession(chatId); if (!s || !s.analysis) { await tg(chatId, "❌ Run ANALYZE first!"); return; } await submitReport(chatId, s); return; }
 
     if (cmd === "RESET") {
       clearSession(chatId);
@@ -1062,60 +1407,35 @@ app.post("/webhook", async (req, res) => {
       return;
     }
 
-    // Handle CLASSIFY confirmation responses
     if (CLASSIFY_PENDING[chatId]) {
       const p   = CLASSIFY_PENDING[chatId];
       const idx = p.currentIndex;
-      if (cmd === "YES" || cmd === "Y") {
-        // Confirmed — move to next
-        p.currentIndex++;
-        await classifyNext(chatId);
-      } else {
-        // Customer corrected the type
-        p.classifications[idx] = text.trim();
-        await tg(chatId, "✅ Updated to: " + text.trim());
-        p.currentIndex++;
-        await classifyNext(chatId);
-      }
+      if (cmd === "YES" || cmd === "Y") { p.currentIndex++; await classifyNext(chatId); }
+      else { p.classifications[idx] = text.trim(); await tg(chatId, "✅ Updated to: " + text.trim()); p.currentIndex++; await classifyNext(chatId); }
       return;
     }
 
     if (cmd === "REMOVE") {
       const s = getSession(chatId);
-      if (!s || s.docs.length === 0) {
-        await tg(chatId, "❌ No documents to remove!");
-        return;
-      }
+      if (!s || s.docs.length === 0) { await tg(chatId, "❌ No documents to remove!"); return; }
       const removed = s.docs.pop();
       s.ids.pop();
       saveSession(chatId, s);
-      await tg(chatId,
-        `🗑️ Removed: ${removed}\n` +
-        `Remaining: ${s.docs.length} docs\n\n` +
-        `Upload correct document and type ANALYZE!`
-      );
+      await tg(chatId, `🗑️ Removed: ${removed}\nRemaining: ${s.docs.length} docs\n\nUpload correct document and type ANALYZE!`);
       await showMainMenu(chatId);
       return;
     }
 
-    // Handle custom instructions — free text when session active
     const s = getSession(chatId);
     if (s && text && !cmd.match(/^(HELP|START|ANALYZE|MISSING|IMPROVE|PROFILE|CLASSIFY|SUBMIT|RESET|REMOVE|STATUS|NEW)$/)) {
-      // Check if it's additional strengths
-      if (text.toLowerCase().includes("additional strength") ||
-          text.toLowerCase().includes("strength:") ||
-          text.toLowerCase().includes("strong point")) {
+      if (text.toLowerCase().includes("additional strength") || text.toLowerCase().includes("strength:") || text.toLowerCase().includes("strong point")) {
         s.additionalStrengths = text;
         saveSession(chatId, s);
         await tg(chatId, "✅ Additional strengths saved!\nType PROFILE to generate updated report.");
       } else {
-        // Save as custom instruction
         s.customInstruction = text;
         saveSession(chatId, s);
-        await tg(chatId,
-          "✅ Instruction saved: " + text.substring(0,100) + "\n\n" +
-          "Type ANALYZE to analyze with this instruction\nOr PROFILE to regenerate profile with corrections!"
-        );
+        await tg(chatId, "✅ Instruction saved: " + text.substring(0,100) + "\n\nType ANALYZE to analyze with this instruction\nOr PROFILE to regenerate profile with corrections!");
       }
       await showMainMenu(chatId);
       return;
@@ -1130,305 +1450,12 @@ app.post("/webhook", async (req, res) => {
 });
 
 // ============================================================
-// ANALYZE PORTAL — Receives docs from Banking Portal
-// Analyzes with Claude + sends profile to Telegram
-// ============================================================
-app.post("/analyze-portal", async (req, res) => {
-  res.json({success: true, message: "Analysis started"}); // Respond immediately
-
-  try {
-    const data     = req.body;
-    const name     = data.name     || "Unknown";
-    const mobile   = data.mobile   || "";
-    const loanType = data.loanType || "Personal Loan";
-    const empType  = data.empType  || "Salaried";
-    const cibil    = data.cibil    || "Not Checked";
-    const income   = data.income   || "";
-    const isAdmin  = data.isAdmin  || false;
-    const chatId   = process.env.CHAT_ID || "1471849538";
-
-    console.log(`Portal analysis started: ${name} | ${loanType} | ${mobile}`);
-
-    await tg(chatId, `⏳ AI analyzing documents for ${name}...\nLoan: ${loanType}\nPlease wait 30-60 seconds!`);
-
-    // Build document content array for Claude
-    const content  = [];
-    const docKeys  = ["file_pan","file_aadhar","file_salary1","file_bankSal","file_itr1","file_extra1","file_extra2","file_extra3"];
-    const docNames = ["PAN Card","Aadhar Card","Salary Slip","Bank Statement","ITR","Document 1","Document 2","Document 3"];
-    let   docCount = 0;
-    const docsReceived = [];
-
-    for (let i = 0; i < docKeys.length; i++) {
-      const b64 = data[docKeys[i]];
-      if (!b64 || b64.length < 10) continue;
-      try {
-        const isPDF  = b64.startsWith("PDF:");
-        const rawB64 = isPDF ? b64.replace("PDF:", "") : b64;
-
-        // Detect mime type from base64 signature
-        let mimeType = "image/jpeg";
-        if (isPDF) {
-          mimeType = "application/pdf";
-        } else if (rawB64.startsWith("iVBOR")) {
-          mimeType = "image/png";  // PNG
-        } else if (rawB64.startsWith("/9j/")) {
-          mimeType = "image/jpeg"; // JPEG
-        } else {
-          mimeType = "image/jpeg"; // Default to JPEG
-        }
-
-        if (isPDF) {
-          content.push({type:"document", source:{type:"base64", media_type:"application/pdf", data:rawB64}});
-        } else {
-          content.push({type:"image", source:{type:"base64", media_type:mimeType, data:rawB64}});
-        }
-        docCount++;
-        docsReceived.push(docNames[i]);
-        console.log(`Loaded: ${docNames[i]} | mime: ${mimeType} | size: ${rawB64.length}`);
-      } catch(e) {
-        console.error(`Doc error ${docNames[i]}: ${e.message}`);
-      }
-    }
-
-    console.log(`Total docs loaded: ${docCount} | ${docsReceived.join(", ")}`);
-
-    if (docCount === 0) {
-      await tg(chatId, `⚠️ No readable documents found for ${name}!\nPlease check uploads and retry.`);
-      return;
-    }
-
-    // Build portal analysis prompt
-    const lt        = loanType.toUpperCase();
-    const isHL      = lt.includes("HOME");
-    const isLAP     = lt.includes("PROPERTY") || lt.includes("AGAINST");
-    const isSecured = isHL || isLAP;
-
-    let prompt = `You are an expert Indian loan underwriter for VastMyWealth Advisory.\n\n`;
-    prompt += `Analyze ${docCount} documents for: ${name}\n`;
-    prompt += `Loan Type: ${loanType}\n`;
-    prompt += `Employment: ${empType}\n`;
-    prompt += `CIBIL Declared: ${cibil}\n`;
-    if (income) prompt += `Declared Income: ${income}\n`;
-    prompt += `\n`;
-    prompt += `EXTRACT AND ANALYZE:\n`;
-    prompt += `1. Name from PAN card\n`;
-    prompt += `2. Customer type — Salaried or Self Employed\n`;
-    prompt += `3. Loan amount if mentioned\n`;
-    prompt += `4. Salary credit amount (if salaried) OR average bank balance (if self employed)\n`;
-    prompt += `5. Existing EMIs from bank statement\n`;
-    prompt += `6. List of documents uploaded\n`;
-    prompt += `7. Any red flags\n`;
-    if (isSecured) {
-      prompt += `8. Property type (MCGM/GP/SRA/MHADA/CHS) if docs available\n`;
-    }
-    prompt += `\nFORMAT AS TWO SECTIONS:\n\n`;
-    prompt += `SECTION 1 — TELEGRAM BRIEF:\n`;
-    prompt += `👤 [Name] | [Salaried/Self Employed]\n`;
-    prompt += `🏠 Loan: ${loanType} | Amount: ₹[amount or N/A]\n`;
-    prompt += `📊 CIBIL: ${cibil}\n`;
-    prompt += `💰 ${empType === "Salaried" ? "Salary Credit" : "Avg Bank Balance"}: ₹[amount]\n`;
-    prompt += `💳 Existing EMIs: ₹[amount or None]\n`;
-    if (isSecured) prompt += `🏠 Property: [type] | Risk: [LOW/MED/HIGH]\n`;
-    prompt += `⚠️ Red Flags: [None or list]\n`;
-    prompt += `📋 Docs: ${docsReceived.join(", ")}\n\n`;
-    prompt += `---DSA_PROFILE_START---\n\n`;
-    prompt += `SECTION 2 — DSA EMAIL BODY:\n`;
-    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    prompt += `🏦 VASTMYWEALTH ADVISORY\n`;
-    prompt += `   LOAN APPLICATION\n`;
-    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    prompt += `👤 APPLICANT\n`;
-    prompt += `Name: [from PAN]\n`;
-    prompt += `Customer Type: ${empType}\n\n`;
-    prompt += `🏦 LOAN REQUIREMENT\n`;
-    prompt += `Type: ${loanType}\n`;
-    prompt += `Amount: ₹[if mentioned, else N/A]\n\n`;
-    prompt += `💰 FINANCIAL SUMMARY\n`;
-    prompt += `Credit Score (Self Declared): ${cibil}\n`;
-    prompt += `${empType === "Salaried" ? "Monthly Salary Credit" : "Average Bank Balance"}: ₹[amount]\n`;
-    prompt += `Existing EMIs: ₹[amount or None]\n\n`;
-    prompt += `📋 DOCUMENTS AVAILABLE\n`;
-    docsReceived.forEach(d => { prompt += `✅ ${d}\n`; });
-    prompt += `\n━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    prompt += `VastMyWealth Advisory | Manoj: 9594592020\n`;
-    prompt += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    prompt += `---DSA_PROFILE_END---\n\n`;
-    prompt += `IMPORTANT: Extract figures from documents only. Write N/A if not available.`;
-
-    content.push({type:"text", text:prompt});
-
-    // Call Claude API
-    console.log(`Calling Claude with ${content.length} content items...`);
-    const aiRes = await fetch(AI, {
-      method : "POST",
-      headers: {
-        "Content-Type"     : "application/json",
-        "x-api-key"        : ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model     : "claude-haiku-4-5",
-        max_tokens: 1500,
-        messages  : [{role:"user", content}]
-      })
-    });
-
-    let result = await aiRes.json();
-    console.log("Claude API status:", aiRes.status);
-    console.log("Claude response:", JSON.stringify(result).substring(0,300));
-    if (result.error && result.error.message && result.error.message.includes("password protected")) {
-  const password = data.bankPassword || "";
-  if (!password) {
-    await tg(chatId, `⚠️ Bank statement is password protected!\nPlease enter password in portal and retry.`);
-    return;
-  }
-  console.log("Attempting ilovepdf unlock...");
-  const unlocked = await unlockPDF(data.file_bankSal, password);
-  if (!unlocked) {
-    await tg(chatId, `⚠️ Could not unlock!\nPlease check password and retry.`);
-    return;
-  }
-  console.log("PDF unlocked! Retrying Claude...");
-  for (let i = 0; i < content.length; i++) {
-    if (content[i].type === "document") {
-      content[i] = {type:"document", source:{type:"base64", media_type:"application/pdf", data:unlocked.replace("PDF:","")}};
-      break;
-    }
-  }
-  const retryRes = await fetch(AI, {
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01"},
-    body:JSON.stringify({model:"claude-haiku-4-5", max_tokens:1500, messages:[{role:"user", content}]})
-  });
-  result = await retryRes.json();
-  console.log("Retry status:", retryRes.status);
-}
-
-
-    if (!result.content || !result.content[0]) {
-      await tg(chatId, `❌ AI analysis failed for ${name}!\nError: ${JSON.stringify(result).substring(0,200)}\nPlease retry or review manually.`);
-      return;
-    }
-
-    const fullText   = result.content[0].text;
-
-    // Split into brief and DSA profile
-    const parts      = fullText.split("---DSA_PROFILE_START---");
-    const briefText  = parts[0].trim();
-    const dsaProfile = parts.length > 1 ? parts[1].replace("---DSA_PROFILE_END---","").trim() : "";
-
-    // If split failed use full text for Telegram
-    const telegramMsg = briefText.length > 20 ? briefText : fullText.substring(0, 3000);
-
-    // Save profile to Apps Script Master Sheet
-    if (APPS_SCRIPT && mobile) {
-      try {
-        // Clean mobile — last 10 digits only
-        const cleanMobile = mobile.replace(/\D/g,"").slice(-10);
-        const profileText = (dsaProfile || fullText).substring(0, 1500);
-        const saveUrl = APPS_SCRIPT +
-          "?action=saveProfile" +
-          "&mobile="  + encodeURIComponent(cleanMobile) +
-          "&profile=" + encodeURIComponent(profileText);
-        const saveRes    = await fetch(saveUrl);
-        const saveResult = await saveRes.json();
-        console.log("saveProfile response:", JSON.stringify(saveResult));
-      } catch(e) {
-        console.error("Save profile error:", e.message);
-      }
-    }
-
-    // Send brief profile to Telegram
-    const refId = "VMW-" + mobile.slice(-4);
-    const msgToSend = `✅ AI ANALYSIS COMPLETE\n` +
-      `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📋 ${refId} | ${isAdmin ? "Admin Upload" : "Customer Upload"}\n\n` +
-      telegramMsg +
-      `\n\n👉 Review in CRM before allocating DSA`;
-
-    // Send in chunks if too long
-    if (msgToSend.length > 3800) {
-      const chunks = [];
-      let remaining = msgToSend;
-      while (remaining.length > 0) {
-        chunks.push(remaining.substring(0, 3800));
-        remaining = remaining.substring(3800);
-      }
-      for (const chunk of chunks) {
-        await tg(chatId, chunk);
-        await new Promise(r => setTimeout(r, 500));
-      }
-    } else {
-      await tg(chatId, msgToSend);
-    }
-
-    console.log(`✅ Portal analysis complete: ${name}`);
-
-  } catch(err) {
-    console.error("analyze-portal error:", err.message);
-    try {
-      const chatId = process.env.CHAT_ID || "1471849538";
-      await tg(chatId, `❌ Analysis error for portal submission!\nError: ${err.message}\nPlease review manually in CRM.`);
-    } catch(e) {}
-  }
-});
-async function unlockPDF(b64, password) {
-  try {
-    const ILOVEPDF_PUBLIC = process.env.ILOVEPDF_PUBLIC;
-    const authRes  = await fetch("https://api.ilovepdf.com/v1/auth", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({public_key: ILOVEPDF_PUBLIC})
-    });
-    const authData = await authRes.json();
-    const token    = authData.token;
-    if (!token) { console.log("ilovepdf auth failed"); return null; }
-    const taskRes  = await fetch("https://api.ilovepdf.com/v1/start/unlock", {
-      method:"GET", headers:{"Authorization":"Bearer " + token}
-    });
-    const taskData = await taskRes.json();
-    const server   = taskData.server;
-    const taskId   = taskData.task;
-    if (!server || !taskId) { console.log("ilovepdf task failed"); return null; }
-    const rawB64   = b64.startsWith("PDF:") ? b64.replace("PDF:","") : b64;
-    const buffer   = Buffer.from(rawB64, "base64");
-    const FormData = require("form-data");
-    const form     = new FormData();
-    form.append("task", taskId);
-    form.append("file", buffer, {filename:"bank.pdf", contentType:"application/pdf"});
-    const uploadRes  = await fetch("https://" + server + "/v1/upload", {
-      method:"POST", headers:{"Authorization":"Bearer " + token, ...form.getHeaders()}, body:form
-    });
-    const uploadData = await uploadRes.json();
-    if (!uploadData.server_filename) { console.log("ilovepdf upload failed"); return null; }
-    const processRes = await fetch("https://" + server + "/v1/process", {
-      method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer " + token},
-      body:JSON.stringify({
-        task:taskId, tool:"unlock",
-        files:[{server_filename:uploadData.server_filename, filename:"bank.pdf", task:taskId, password:password}]
-      })
-    });
-    const processData = await processRes.json();
-    console.log("ilovepdf process:", JSON.stringify(processData).substring(0,100));
-    if (!processData.download_filename) return null;
-    const downloadRes = await fetch("https://" + server + "/v1/download/" + taskId, {
-      headers:{"Authorization":"Bearer " + token}
-    });
-    const pdfBuffer = await downloadRes.buffer();
-    console.log("✅ PDF unlocked successfully!");
-    return "PDF:" + pdfBuffer.toString("base64");
-  } catch(e) {
-    console.error("unlockPDF error:", e.message);
-    return null;
-  }
-}
-
-// ============================================================
 // HEALTH CHECK
 // ============================================================
 app.get("/", (req, res) => {
   res.json({
-    status : "✅ VMW AI Analyzer v4 Running",
-    version: "v4",
+    status : "✅ VMW AI Analyzer v5 Running",
+    version: "v5",
     time   : new Date().toISOString()
   });
 });
@@ -1439,9 +1466,7 @@ app.get("/", (req, res) => {
 app.get("/setup", async (req, res) => {
   const url = req.query.url;
   if (!url) return res.json({error: "Provide ?url=YOUR_RENDER_URL/webhook"});
-  const response = await fetch(
-    `${TG}/setWebhook?url=${encodeURIComponent(url)}&drop_pending_updates=true`
-  );
+  const response = await fetch(`${TG}/setWebhook?url=${encodeURIComponent(url)}&drop_pending_updates=true`);
   const data = await response.json();
   res.json(data);
 });
@@ -1451,6 +1476,6 @@ app.get("/setup", async (req, res) => {
 // ============================================================
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 VMW AI Analyzer v4 running on port ${PORT}`);
+  console.log(`🚀 VMW AI Analyzer v5 running on port ${PORT}`);
 });
 
