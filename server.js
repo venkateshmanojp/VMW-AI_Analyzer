@@ -1086,6 +1086,31 @@ ${lenderText}
     } else {
       await tg(chatId, telegramBrief);
     }
+// ── DSA ALLOCATION BUTTONS ───────────────────────────
+    var dsaKeyboard = {
+      inline_keyboard: [
+        [
+          {text:"My Mudra",    callback_data:"case_assign|"+mobile.replace(/\D/g,"")+"|My Mudra"},
+          {text:"RU Loans",    callback_data:"case_assign|"+mobile.replace(/\D/g,"")+"|RU Loans"}
+        ],
+        [
+          {text:"Andromeda",   callback_data:"case_assign|"+mobile.replace(/\D/g,"")+"|Andromeda"},
+          {text:"Urban Money", callback_data:"case_assign|"+mobile.replace(/\D/g,"")+"|Urban Money"}
+        ],
+        [
+          {text:"⚙️ Manual Decision", callback_data:"case_assign|"+mobile.replace(/\D/g,"")+"|Manual Decision"}
+        ]
+      ]
+    };
+    await fetch(`${TG}/sendMessage`, {
+      method :"POST",
+      headers:{"Content-Type":"application/json"},
+      body   :JSON.stringify({
+        chat_id     : chatId,
+        text        : "📋 " + name + " | " + loanType + " | " + loanAmount + "\nSelect DSA to allocate ↓",
+        reply_markup: dsaKeyboard
+      })
+    });
 
     console.log(`✅ Case summary complete: ${name}`);
 
