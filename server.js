@@ -755,12 +755,14 @@ async function getLendersByCity(city) {
 async function sendCaseEmail(caseData) {
   try {
     if (!APPS_SCRIPT) return false;
-    const url = APPS_SCRIPT + "?action=sendCaseEmail";
-    const res = await fetch(url, {
-      method : "POST",
-      headers: {"Content-Type": "application/json"},
-      body   : JSON.stringify(caseData)
-    });
+    const url = APPS_SCRIPT +
+      "?action=sendCaseEmail" +
+      "&to="      + encodeURIComponent(caseData.to      || "") +
+      "&subject=" + encodeURIComponent(caseData.subject || "") +
+      "&body="    + encodeURIComponent((caseData.body   || "").substring(0, 2000)) +
+      "&mobile="  + encodeURIComponent(caseData.mobile  || "") +
+      "&name="    + encodeURIComponent(caseData.name    || "");
+    const res  = await fetch(url);
     const data = await res.json();
     return data.success === true;
   } catch(e) {
@@ -768,6 +770,7 @@ async function sendCaseEmail(caseData) {
     return false;
   }
 }
+
 
 // ============================================================
 // ============================================================
