@@ -762,9 +762,16 @@ async function sendCaseEmail(caseData) {
       "&body="    + encodeURIComponent((caseData.body   || "").substring(0, 2000)) +
       "&mobile="  + encodeURIComponent(caseData.mobile  || "") +
       "&name="    + encodeURIComponent(caseData.name    || "");
-    const res  = await fetch(url);
-    const data = await res.json();
-    return data.success === true;
+    const res  = await fetch(url, { redirect: "follow" });
+    const text = await res.text();
+    try {
+      const data = JSON.parse(text);
+      return data.success === true;
+    } catch(e) {
+      console.error("Email parse error:", text.substring(0,100));
+      return false;
+    }
+
   } catch(e) {
     console.error("sendCaseEmail error:", e.message);
     return false;
