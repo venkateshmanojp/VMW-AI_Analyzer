@@ -1063,7 +1063,7 @@ RULES:
 
 👤 ${name} | Age: ${age}
 💼 ${loanType} | ${loanAmount}
-🏙️ ${city}
+🏙️ 🏙️ ${city}${data.state ? ", " + data.state : ""}
 💰 Income: ${monthlyIncome}
 📊 CIBIL: ${cibilScore}
 💳 EMIs: ${existingEMI}
