@@ -926,6 +926,17 @@ ${docsReceived.length > 0 ? docsReceived.map(d => "✅ " + d).join("\n") : "Docu
 
 CONVERSATION CONTEXT:
 ${conversationSummary}
+IMPORTANT — Write like a professional credit manager:
+- Analyze employment stability based on company and experience
+- Comment on income vs loan amount feasibility  
+- Calculate FOIR based on income and existing EMIs
+- Mention loan eligibility amount
+- Comment on CIBIL strength
+- For self employed — comment on business vintage strength
+- Highlight genuine strengths
+- Note any concerns
+- Write in banker friendly language
+- Make it sound like a human wrote it — not a data dump
 
 FORMAT THE CASE NOTE EXACTLY LIKE THIS SAMPLE:
 
