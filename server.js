@@ -756,27 +756,23 @@ async function sendCaseEmail(caseData) {
   try {
     if (!APPS_SCRIPT) return false;
     const url = APPS_SCRIPT +
-      "?action=sendCaseEmail" +
-      "&to="      + encodeURIComponent(caseData.to      || "") +
-      "&subject=" + encodeURIComponent(caseData.subject || "") +
-      "&body="    + encodeURIComponent((caseData.body   || "").substring(0, 2000)) +
-      "&mobile="  + encodeURIComponent(caseData.mobile  || "") +
-      "&name="    + encodeURIComponent(caseData.name    || "");
+      "?action=saveAnalysis" +
+      "&loan="     + encodeURIComponent(caseData.loanType || "") +
+      "&name="     + encodeURIComponent(caseData.name     || "") +
+      "&cibil="    + encodeURIComponent(caseData.cibil    || "") +
+      "&docs="     + encodeURIComponent("WhatsApp Upload") +
+      "&prob="     + encodeURIComponent("N/A") +
+      "&analysis=" + encodeURIComponent((caseData.body    || "").substring(0, 2000));
     const res  = await fetch(url, { redirect: "follow" });
     const text = await res.text();
-    try {
-      const data = JSON.parse(text);
-      return data.success === true;
-    } catch(e) {
-      console.error("Email parse error:", text.substring(0,100));
-      return false;
-    }
-
+    console.log("Email response:", text.substring(0, 100));
+    return text.indexOf("success") !== -1;
   } catch(e) {
     console.error("sendCaseEmail error:", e.message);
     return false;
   }
 }
+
 
 
 // ============================================================
