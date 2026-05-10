@@ -1061,7 +1061,7 @@ app.post("/webhook", async (req, res) => {
 
             // Send email
             const subject = "New Case — " + mob + " | " + dsa + " | VastMyWealth";
-            const emailBody = "CASE ALLOCATED TO: " + dsa + "\n\n" + caseSummary + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\nRM: Manoj — " + MANOJ_MOBILE + "\nVastMyWealth Advisory";
+            const emailBody = "CASE ALLOCATED TO: " + dsa + "\n\n" + caseSummary + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\nRM: Manoj — " + MANOJ_MOBILE + "\nVast Wealth Advisors Pvt Ltd";
 
             emailSent = await sendEmail(ADMIN_EMAIL, subject, emailBody, mob, dsa);
 
