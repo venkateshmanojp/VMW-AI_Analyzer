@@ -692,96 +692,97 @@ app.post("/case-summary", async (req, res) => {
       if (ageNum > 0) ageAtEnd = (ageNum + 20) + " years (20yr tenure)";
     } catch(e) {}
 
-    const casePrompt = `You are a senior credit manager at VastMyWealth Advisory preparing a professional case note for internal review.
+    const casePrompt = `You are a senior credit manager at VastMyWealth Advisory preparing a professional case note for a banker/lender.
 
-Use ONLY the data collected below. If any field is not available write "To be confirmed".
-Do NOT use ** bold markdown. Do NOT use --- dividers. Use plain text only.
-Write naturally — like a human banker wrote it.
+Write a clear banker-friendly case note based on the customer details below.
+Write like a human credit manager — NOT a data dump.
+Use the style of the sample case note provided.
+Be concise but comprehensive. Banker should read in 2 minutes.
 
-CUSTOMER DATA:
-Name: ${name} | Age: ${age} | Mobile: ${mobile}
-City: ${cityState}
-Employment: ${employmentType} | Company/Business: ${companyName}
+CUSTOMER DETAILS COLLECTED BY ${specialistName}:
+Name: ${name}
+Age: ${age}
+Loan Type: ${loanType}${isBT ? " (Balance Transfer)" : ""}
+Loan Amount Required: ${loanAmount}
+Location: ${cityState}
+Employment: ${employmentType}
+Company/Business: ${companyName}
 Experience/Vintage: ${employmentType.toLowerCase().includes("self") ? businessVintage : workExperience}
 Monthly Income: ${monthlyIncome}
-CIBIL: ${cibilScore}
-Existing EMIs: ${existingEMI} | FOIR: ${foirText}
-Bounces: ${bounces}
-Loan Type: ${loanType} | Amount: ${loanAmount}
-Property: ${propertyDetails}
+CIBIL Score: ${cibilScore}
+Existing EMIs: ${existingEMI}
+FOIR: ${foirText}
+Age at Loan End: ${ageAtEnd}
+Cheque/ECS Bounces: ${bounces}
 Co-Applicant: ${coApplicant}
-Callback: ${callbackDate} at ${callbackTime}
-Additional Info: ${conversationSummary}
+Property Details: ${propertyDetails}
+${isPartnerCase ? "Partner Code: " + partnerCode : "Direct Lead"}
 
-Write case note in EXACTLY this format — no extra sections, no markdown:
+CONVERSATION SUMMARY:
+${conversationSummary}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━
-VASTMYWEALTH ADVISORY — CASE NOTE
-━━━━━━━━━━━━━━━━━━━━━━━━━
+Write the case note in this exact format:
 
-1. APPLICANT DETAILS
-Name            : ${name}
-Mobile          : ${mobile}
-City            : ${cityState}
-Age             : ${age}
-Employment      : ${employmentType}
-Company/Business: ${companyName}
-Vintage/Exp     : [experience or vintage]
-Residence       : [owned/rented if mentioned, else To be confirmed]
+CASE: ${loanType.toUpperCase()} — ${loanAmount}${isBT ? " (BALANCE TRANSFER)" : ""}
 
-2. LOAN REQUIREMENT
-Loan Type       : ${loanType}
-Amount Required : ${loanAmount}
-Purpose         : [derive from conversation or To be confirmed]
-Urgency         : [immediate/planned if mentioned, else To be confirmed]
+APPLICANT PROFILE:
+• ${name}, Age ${age}
+• ${employmentType} — ${companyName}
+• [Comment on employment stability — e.g. "Stable employment with 8+ years experience"]
 
-3. FINANCIAL PROFILE
-${employmentType.toLowerCase().includes("self") ? 
-`Business Type   : [type]
-Annual Turnover : [if mentioned]
-Approx Profit   : [if mentioned]
-GST Available   : [yes/no if mentioned]
-ITR Filed       : [yes/no if mentioned]` :
-`Monthly Salary  : ${monthlyIncome}
-Employer        : ${companyName}
-Total Exp       : [experience]
-Current Vintage : [current company experience]`}
+${coApplicant && coApplicant !== "None" ? `CO-APPLICANT:
+• ${coApplicant}
+• [Income and relationship if available]
 
-4. CREDIT PROFILE
-Approx CIBIL    : ${cibilScore}
-Existing EMIs   : ${existingEMI}
-FOIR            : ${foirText}
-Bounces/DPD     : ${bounces}
-Recent Enquiries: [if mentioned, else To be confirmed]
-Unsecured Loans : [if mentioned, else To be confirmed]
+` : ""}LOCATION:
+• ${cityState}
 
-${isSecured ? `5. PROPERTY DETAILS
-Property Type   : [residential/commercial]
-Ownership       : [self/joint if mentioned]
-Location        : ${cityState}
-Market Value    : [if mentioned]
-Existing Loan   : [if mentioned]
-Required Amount : ${loanAmount}
+INCOME DETAILS:
+• Monthly Income: ${monthlyIncome}
+• Existing EMI Obligations: ${existingEMI}
+• FOIR: ${foirText}
+• [Comment on income stability]
 
-` : ""}6. BANKING & DOCUMENTS
-Bank Statement  : To be collected
-Salary/ITR      : To be collected
-Aadhaar         : To be collected
-PAN             : To be collected
-${employmentType.toLowerCase().includes("self") ? "GST/Financials  : To be collected" : ""}
+BANKING & CREDIT:
+• CIBIL Score: ${cibilScore}
+• Cheque/ECS Bounces: ${bounces}
+• [Comment on credit behavior]
 
-7. CASE OBSERVATIONS
-[Write 3-5 lines in plain English — professional assessment of the case.
-Comment on: income stability, CIBIL strength/weakness, FOIR comfort level,
-property adequacy if applicable, co-applicant strength if any,
-recommended approach for lender pitch.
-This is the most important section — write like an experienced banker.]
+${isSecured ? `PROPERTY DETAILS:
+• ${propertyDetails}
+• [Property type and risk comment]
+
+` : ""}LOAN REQUIREMENT:
+• Type: ${loanType}${isBT ? " — Balance Transfer" : ""}
+• Amount: ${loanAmount}
+• Purpose: [Derive from context]
+• Tenure: Up to 20 years preferred
+
+CALLBACK SCHEDULED:
+• Date: ${callbackDate}
+• Time: ${callbackTime}
+• RM: Manoj — ${MANOJ_MOBILE}
+
+STRENGTHS:
+• [List 3-5 genuine strengths based on profile]
+
+${String(cibilScore).match(/65[0-9]|6[0-4][0-9]/) ? `CONCERNS:
+• CIBIL borderline — recommend lenders with flexible criteria
+` : ""}NOTE:
+[2-3 line summary — why this case should be considered and recommended approach]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━
-Specialist : ${specialistName} | VastMyWealth Advisory
-Callback   : ${callbackDate} at ${callbackTime}
-RM Contact : Manoj — 9594592020
-━━━━━━━━━━━━━━━━━━━━━━━━━`;
+Prepared by: ${specialistName} — VastMyWealth Advisory
+Date: ${today}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RULES:
+1. Write like a human banker — simple clear professional language
+2. No technical jargon
+3. If data not available write "To be confirmed"
+4. Highlight genuine strengths
+5. Keep total length reasonable
+6. Do NOT include raw data dump — write analysis`;
 
     const caseRes = await fetch(AI, {
       method:"POST",
@@ -809,7 +810,7 @@ RM Contact : Manoj — 9594592020
         const saveUrl = APPS_SCRIPT +
           "?action=saveProfile" +
           "&mobile="  + encodeURIComponent(cleanMobile) +
-          "&profile=" + encodeURIComponent(caseSummary.substring(0, 1500));
+          "&profile=" + encodeURIComponent(caseSummary.substring(0, 5000));
         await fetch(saveUrl);
         console.log("Case saved to Master Sheet");
       } catch(e) {
@@ -1061,15 +1062,17 @@ app.post("/webhook", async (req, res) => {
 
             // Send email
             const subject = "New Case — " + mob + " | " + dsa + " | VastMyWealth";
-            const emailBody = "CASE ALLOCATED TO: " + dsa + "\n\n" + caseSummary + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\nRM: Manoj — " + MANOJ_MOBILE + "\nVast Wealth Advisors Pvt Ltd";
+            const emailBody = "CASE ALLOCATED TO: " + dsa + "\n\n" + caseSummary + "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\nRM: Manoj — " + MANOJ_MOBILE + "\nVastMyWealth Advisory";
 
             emailSent = await sendEmail(ADMIN_EMAIL, subject, emailBody, mob, dsa);
 
             // Update WA Leads status
             const updateUrl = APPS_SCRIPT +
               "?action=updateWALeadStatus" +
-              "&mobile=" + encodeURIComponent(mob) +
-              "&status=" + encodeURIComponent("Allocated — " + dsa);
+              "&mobile="      + encodeURIComponent(mob) +
+              "&status="      + encodeURIComponent("Allocated") +
+              "&dsa="         + encodeURIComponent(dsa) +
+              "&allocatedOn=" + encodeURIComponent(new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}));
             await fetch(updateUrl, {redirect:"follow"});
           }
         } catch(e) {
